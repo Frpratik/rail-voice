@@ -11,21 +11,19 @@ Best free combo for RailVoice:
 
 Cold start: first request to Render after idle can take 30–60s. That’s normal on free.
 
+### Your live frontend
+
+```text
+https://rail-voice.vercel.app
+```
+
 ---
 
 ## 0. Push code to GitHub
 
-If the repo isn’t on GitHub yet:
+Repo: https://github.com/Frpratik/rail-voice
 
-```bash
-git remote -v
-# create a private/public repo, then:
-git add -A
-git commit -m "Prep free-tier deploy"
-git push -u origin main
-```
-
-You need a GitHub repo for Vercel + Render to build from.
+Already pushed — skip if `main` is up to date.
 
 ---
 
@@ -57,7 +55,7 @@ Keep these handy for Render env vars.
 ## 2. Render (API) — ~5 minutes
 
 1. Sign up with GitHub: https://dashboard.render.com  
-2. **New → Web Service** → select the RailVoice repo  
+2. **New → Web Service** → select **Frpratik/rail-voice**  
 3. Settings:
 
 | Field | Value |
@@ -68,13 +66,13 @@ Keep these handy for Render env vars.
 | Start Command | `bash scripts/free_boot.sh` |
 | Instance type | **Free** |
 
-4. Environment variables (Environment tab):
+4. Environment variables (Environment tab) — **copy/paste**:
 
 | Key | Value |
 |-----|--------|
 | `APP_ENV` | `staging` |
 | `DEBUG` | `false` |
-| `SECRET_KEY` | long random string (32+) |
+| `SECRET_KEY` | *(generate a long random 32+ string)* |
 | `DATABASE_URL` | Neon async URL (`postgresql+asyncpg://...?ssl=require`) |
 | `DATABASE_URL_SYNC` | Neon sync URL (`postgresql://...?sslmode=require`) |
 | `CELERY_ENABLED` | `false` |
@@ -82,12 +80,19 @@ Keep these handy for Render env vars.
 | `OTP_MOCK_CODE` | `123456` |
 | `GOOGLE_OAUTH_MOCK_MODE` | `true` |
 | `RUN_SEED` | `true` |
-| `CORS_ORIGINS` | `https://YOUR-VERCEL-URL.vercel.app` (update after step 3) |
+| `CORS_ORIGINS` | `https://rail-voice.vercel.app,http://localhost:3000` |
 | `PUBLIC_BASE_URL` | `https://YOUR-RENDER-SERVICE.onrender.com` |
 | `LOCAL_STORAGE_PATH` | `storage/uploads` |
 
-5. Deploy → wait until live.  
-6. Test:
+Copy-paste for CORS (ready now):
+
+```text
+https://rail-voice.vercel.app,http://localhost:3000
+```
+
+5. Deploy → wait until live. Note your API URL, e.g. `https://rail-voice-api.onrender.com`.  
+6. Update `PUBLIC_BASE_URL` to that URL, then **Manual Deploy**.  
+7. Test:
 
 ```bash
 curl https://YOUR-RENDER-SERVICE.onrender.com/health
@@ -98,43 +103,46 @@ Super admin (seeded): mobile `+919999999999`, OTP `123456`.
 
 ---
 
-## 3. Vercel (frontend) — ~3 minutes
+## 3. Vercel (frontend) — already live
 
-1. Sign up: https://vercel.com → Import GitHub repo  
-2. Settings:
+Your app: **https://rail-voice.vercel.app**
 
-| Field | Value |
-|-------|--------|
-| Root Directory | `railvoice-web` |
-| Framework | Next.js |
+Root Directory: `railvoice-web`
 
-3. Environment variable:
+### Environment variable (Vercel → Settings → Environment Variables)
 
-| Key | Value |
-|-----|--------|
+| Key | Value (after Render is live) |
+|-----|------------------------------|
 | `NEXT_PUBLIC_API_URL` | `https://YOUR-RENDER-SERVICE.onrender.com/api/v1` |
 
-4. Deploy.  
-5. Copy the Vercel URL (e.g. `https://railvoice-xxx.vercel.app`).
+Example once you know the Render hostname:
+
+```text
+NEXT_PUBLIC_API_URL=https://rail-voice-api.onrender.com/api/v1
+```
+
+Redeploy the Vercel project after setting this (Deployments → … → Redeploy).
 
 ---
 
-## 4. Wire CORS (important)
+## 4. Wire CORS on Render (copy/paste)
 
-Back on **Render → Environment**:
+**Render → Environment** — set exactly:
 
 ```text
-CORS_ORIGINS=https://railvoice-xxx.vercel.app
+CORS_ORIGINS=https://rail-voice.vercel.app,http://localhost:3000
 PUBLIC_BASE_URL=https://YOUR-RENDER-SERVICE.onrender.com
 ```
 
-**Manual Redeploy** the API so CORS updates. Then hard-refresh the Vercel site.
+Replace `YOUR-RENDER-SERVICE` with your real Render hostname, then **Manual Redeploy** the API.
+
+Open https://rail-voice.vercel.app and hard-refresh.
 
 ---
 
 ## 5. Smoke test checklist
 
-- [ ] Open Vercel URL → home feed loads (may be slow on first hit)  
+- [ ] https://rail-voice.vercel.app → home feed loads (may be slow on first hit)  
 - [ ] `/login` → OTP `+919876543210` / `123456`  
 - [ ] Report an issue with photos  
 - [ ] Super admin `+919999999999` → Profile → Operations console  

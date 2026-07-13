@@ -41,7 +41,7 @@ services:
       - key: DATABASE_URL_SYNC
         sync: false
       - key: CORS_ORIGINS
-        sync: false
+        value: https://rail-voice.vercel.app,http://localhost:3000
       - key: PUBLIC_BASE_URL
         sync: false
       - key: REDIS_URL
