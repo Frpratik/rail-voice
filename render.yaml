@@ -1,0 +1,52 @@
+# Free-tier Blueprint — Render.com
+# Deploy: connect this GitHub repo in Render → "New Blueprint" → select this file
+# Or create a Web Service manually using the settings below.
+
+services:
+  - type: web
+    name: railvoice-api
+    runtime: python
+    plan: free
+    rootDir: railvoice-backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash scripts/free_boot.sh
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: DEBUG
+        value: "false"
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: CELERY_ENABLED
+        value: "false"
+      - key: OTP_MOCK_MODE
+        value: "true"
+      - key: OTP_MOCK_CODE
+        value: "123456"
+      - key: GOOGLE_OAUTH_MOCK_MODE
+        value: "true"
+      - key: RUN_SEED
+        value: "true"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: STORAGE_BACKEND
+        value: local
+      - key: LOCAL_STORAGE_PATH
+        value: storage/uploads
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_SYNC
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: REDIS_URL
+        value: ""
+      - key: CELERY_BROKER_URL
+        value: ""
+      - key: CELERY_RESULT_BACKEND
+        value: ""

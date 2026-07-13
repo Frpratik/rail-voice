@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: railvoice
+          POSTGRES_PASSWORD: railvoice
+          POSTGRES_DB: railvoice
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U railvoice -d railvoice"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: railvoice-backend
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx pytest-cov
+
+      - name: Run migrations and seed
+        working-directory: railvoice-backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://railvoice:railvoice@localhost:5432/railvoice
+          DATABASE_URL_SYNC: postgresql://railvoice:railvoice@localhost:5432/railvoice
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key
+          OTP_MOCK_MODE: "true"
+        run: |
+          alembic upgrade head
+          python -m app.scripts.seed
+
+      - name: Run tests with coverage
+        working-directory: railvoice-backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://railvoice:railvoice@localhost:5432/railvoice
+          DATABASE_URL_SYNC: postgresql://railvoice:railvoice@localhost:5432/railvoice
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key
+          OTP_MOCK_MODE: "true"
+          PYTHONPATH: .
+        run: |
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=55 -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: railvoice-web/package-lock.json
+
+      - name: Install and build
+        working-directory: railvoice-web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Lint
+        working-directory: railvoice-web
+        run: npm run lint

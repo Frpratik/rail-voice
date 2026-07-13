@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f5f7;
+  --foreground: #0a0b0d;
+  --card: #ffffff;
+  --card-border: rgba(10, 11, 13, 0.08);
+  --primary: #0a0b0d;
+  --primary-foreground: #fafafa;
+  --accent: #e8481a;
+  --accent-foreground: #ffffff;
+  --success: #0f7a62;
+  --warning: #c47a0a;
+  --destructive: #d92d20;
+  --muted: #e8eaee;
+  --muted-foreground: #5c6370;
+  --border: rgba(10, 11, 13, 0.1);
+  --ring: #e8481a;
+  --surface-elevated: #ffffff;
+  --glow: rgba(232, 72, 26, 0.18);
+  --mesh-a: rgba(232, 72, 26, 0.07);
+  --mesh-b: rgba(15, 122, 98, 0.06);
+}
+
+.dark {
+  --background: #07080a;
+  --foreground: #f2f3f5;
+  --card: #111318;
+  --card-border: rgba(255, 255, 255, 0.08);
+  --primary: #f2f3f5;
+  --primary-foreground: #0a0b0d;
+  --accent: #ff6a3d;
+  --accent-foreground: #0a0b0d;
+  --success: #2dd4a8;
+  --warning: #f5b941;
+  --destructive: #ff6b6b;
+  --muted: #1a1d24;
+  --muted-foreground: #9aa1ad;
+  --border: rgba(255, 255, 255, 0.1);
+  --ring: #ff6a3d;
+  --surface-elevated: #161920;
+  --glow: rgba(255, 106, 61, 0.22);
+  --mesh-a: rgba(255, 106, 61, 0.1);
+  --mesh-b: rgba(45, 212, 168, 0.06);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-border: var(--card-border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-surface-elevated: var(--surface-elevated);
+  --font-sans: var(--font-sora);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-sora);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 90% 55% at 10% -10%, var(--mesh-a), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 100% 0%, var(--mesh-b), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, var(--mesh-a), transparent 60%),
+    var(--background);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-sora), system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--foreground);
+}
+
+.glass-card {
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+}
+
+.surface-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow:
+    0 1px 1px rgba(10, 11, 13, 0.03),
+    0 4px 16px rgba(10, 11, 13, 0.04);
+}
+
+.dark .surface-card {
+  box-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.noise-overlay {
+  position: relative;
+}
+
+.noise-overlay::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .text-display {
+    font-family: var(--font-sora), system-ui, sans-serif;
+    letter-spacing: -0.03em;
+  }
+
+  .focus-ring {
+    outline: none;
+  }
+
+  .focus-ring:focus-visible {
+    box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "description": "AI duplicate detection evaluation pairs for Western Railway issues",
+  "threshold_local": 0.45,
+  "threshold_production": 0.82,
+  "pairs": [
+    {
+      "id": "dup-001",
+      "tier": "local",
+      "issue_a": "There should be a dustbin near Platform 2 bridge at Bandra.",
+      "issue_b": "Garbage bins are missing beside the foot over bridge on Bandra Platform 2",
+      "is_duplicate": true,
+      "station": "BA"
+    },
+    {
+      "id": "dup-002",
+      "tier": "production",
+      "issue_a": "Broken escalator on the north side of Andheri station.",
+      "issue_b": "Escalator not working at Andheri north exit near ticket counter",
+      "is_duplicate": true,
+      "station": "ADH"
+    },
+    {
+      "id": "dup-003",
+      "tier": "production",
+      "issue_a": "Lights are not working on Platform 1 at Dadar station.",
+      "issue_b": "Platform 1 at Dadar is very dark at night, bulbs need replacement",
+      "is_duplicate": true,
+      "station": "DDR"
+    },
+    {
+      "id": "dup-004",
+      "tier": "production",
+      "issue_a": "Train is always late between Borivali and Virar in the morning.",
+      "issue_b": "Morning suburban trains on WR line consistently delayed near Borivali",
+      "is_duplicate": true,
+      "station": "BVI"
+    },
+    {
+      "id": "neg-001",
+      "tier": "local",
+      "issue_a": "There should be a dustbin near Platform 2 bridge at Bandra.",
+      "issue_b": "Broken fan inside coach B1 of local train at Churchgate",
+      "is_duplicate": false,
+      "station": "BA"
+    },
+    {
+      "id": "neg-002",
+      "tier": "local",
+      "issue_a": "Dirty platform at Goregaon station needs cleaning.",
+      "issue_b": "Ticket counter queue too long at Andheri on weekdays",
+      "is_duplicate": false,
+      "station": "GMN"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+!.env.*.example
+!.env.free.example
+!.env.production.example
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node (Phase 8)
+node_modules/
+.next/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+postgres_data/
+
+# Uploads
+uploads/
+storage/
+
+# Production secrets
+.env.production
+
+# Celery local schedule
+celerybeat-schedule
+celerybeat-schedule.*
