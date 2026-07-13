@@ -2,57 +2,88 @@
 
 Best free combo for RailVoice:
 
-| Layer | Service | Cost |
-|-------|---------|------|
-| Frontend | [Vercel](https://vercel.com) | Free |
-| API | [Render](https://render.com) Web Service | Free (spins down after ~15 min idle) |
-| Postgres + pgvector | [Neon](https://neon.tech) | Free |
-| Redis / Celery | Skipped | N/A — AI already runs sync on create |
+| Layer | Service | Cost | Your status |
+|-------|---------|------|-------------|
+| Frontend | [Vercel](https://vercel.com) | Free | **Done** → https://rail-voice.vercel.app |
+| Postgres + pgvector | [Neon](https://neon.tech) | Free | **Do this next** |
+| API | [Render](https://render.com) Web Service | Free | After Neon |
 
 Cold start: first request to Render after idle can take 30–60s. That’s normal on free.
 
-### Your live frontend
-
-```text
-https://rail-voice.vercel.app
-```
-
 ---
 
-## 0. Push code to GitHub
+## Order
+
+1. ~~Vercel (frontend)~~ ✅ https://rail-voice.vercel.app  
+2. **Neon (database)** ← you are here  
+3. Render (API) + wire Vercel `NEXT_PUBLIC_API_URL`
 
 Repo: https://github.com/Frpratik/rail-voice
 
-Already pushed — skip if `main` is up to date.
-
 ---
 
-## 1. Neon (database) — ~2 minutes
+## 1. Neon (database) — do this now
 
-1. Sign up: https://console.neon.tech  
-2. Create project → region close to you (e.g. Singapore / Mumbai if available)  
-3. Open **SQL Editor**, run:
+### A. Create project
+
+1. Open https://console.neon.tech and sign up / log in  
+2. **New Project**
+   - Name: `railvoice` (any name)
+   - Region: closest to you
+   - Postgres version: default is fine  
+3. Create project and wait until it’s ready  
+
+### B. Enable pgvector (required)
+
+1. Open **SQL Editor**  
+2. Paste and **Run**:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-4. **Dashboard → Connection details** → copy connection string.  
-5. Make two variants:
+3. Confirm:
+
+```sql
+SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
+```
+
+You should see one row with `vector`.
+
+### C. Copy connection strings
+
+1. Dashboard → your project → **Connect** / **Connection details**  
+2. Prefer the **pooled** connection if Neon shows both  
+3. Copy the connection string (looks like `postgresql://…@….neon.tech/neondb?sslmode=require`)
+
+From that **one** string, make **two** variants for Render later:
 
 ```text
-# Sync (psycopg2 / Alembic) — usually already looks like this:
+# 1) Sync — keep as-is (or ensure sslmode=require)
 postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
 
-# Async (FastAPI) — change scheme + ssl param:
+# 2) Async — only change the scheme + ssl query param
 postgresql+asyncpg://USER:PASSWORD@HOST/neondb?ssl=require
 ```
 
-Keep these handy for Render env vars.
+Tips:
+- Same `USER`, `PASSWORD`, `HOST`, database name in both  
+- Sync uses `sslmode=require`  
+- Async uses `postgresql+asyncpg://` and `ssl=require` (not `sslmode`)  
+- If the password has special characters, keep Neon’s URL-encoded form  
+
+### D. Save for Render (scratch pad — do not commit)
+
+```env
+DATABASE_URL=postgresql+asyncpg://...neon.tech/neondb?ssl=require
+DATABASE_URL_SYNC=postgresql://...neon.tech/neondb?sslmode=require
+```
+
+When Neon is done, say **“Neon done”** (you can paste the redacted host if you want a double-check) and we’ll do Render next.
 
 ---
 
-## 2. Render (API) — ~5 minutes
+## 2. Render (API) — after Neon
 
 1. Sign up with GitHub: https://dashboard.render.com  
 2. **New → Web Service** → select **Frpratik/rail-voice**  
@@ -60,110 +91,78 @@ Keep these handy for Render env vars.
 
 | Field | Value |
 |-------|--------|
-| Root Directory | `railvoice-backend` |
+| **Root Directory** | `railvoice-backend` ← required (typo/empty = build fails) |
 | Runtime | Python 3 |
 | Build Command | `pip install -r requirements.txt` |
 | Start Command | `bash scripts/free_boot.sh` |
 | Instance type | **Free** |
+| Env `PYTHON_VERSION` | `3.12.8` (avoid Render’s default 3.14) |
 
-4. Environment variables (Environment tab) — **copy/paste**:
+4. Environment → **Add from .env** — paste this (fill Neon + `SECRET_KEY` first):
 
-| Key | Value |
-|-----|--------|
-| `APP_ENV` | `staging` |
-| `DEBUG` | `false` |
-| `SECRET_KEY` | *(generate a long random 32+ string)* |
-| `DATABASE_URL` | Neon async URL (`postgresql+asyncpg://...?ssl=require`) |
-| `DATABASE_URL_SYNC` | Neon sync URL (`postgresql://...?sslmode=require`) |
-| `CELERY_ENABLED` | `false` |
-| `OTP_MOCK_MODE` | `true` |
-| `OTP_MOCK_CODE` | `123456` |
-| `GOOGLE_OAUTH_MOCK_MODE` | `true` |
-| `RUN_SEED` | `true` |
-| `CORS_ORIGINS` | `https://rail-voice.vercel.app,http://localhost:3000` |
-| `PUBLIC_BASE_URL` | `https://YOUR-RENDER-SERVICE.onrender.com` |
-| `LOCAL_STORAGE_PATH` | `storage/uploads` |
-
-Copy-paste for CORS (ready now):
-
-```text
-https://rail-voice.vercel.app,http://localhost:3000
+```env
+APP_ENV=staging
+DEBUG=false
+SECRET_KEY=REPLACE_WITH_LONG_RANDOM_32_PLUS_CHARS
+DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST/neondb?ssl=require
+DATABASE_URL_SYNC=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
+CELERY_ENABLED=false
+CELERY_BROKER_URL=
+CELERY_RESULT_BACKEND=
+REDIS_URL=
+OTP_MOCK_MODE=true
+OTP_MOCK_CODE=123456
+GOOGLE_OAUTH_MOCK_MODE=true
+RUN_SEED=true
+CORS_ORIGINS=https://rail-voice.vercel.app,http://localhost:3000
+PUBLIC_BASE_URL=https://REPLACE_WITH_YOUR_SERVICE.onrender.com
+LOCAL_STORAGE_PATH=storage/uploads
+STORAGE_BACKEND=local
+RATE_LIMIT_ENABLED=true
 ```
 
-5. Deploy → wait until live. Note your API URL, e.g. `https://rail-voice-api.onrender.com`.  
-6. Update `PUBLIC_BASE_URL` to that URL, then **Manual Deploy**.  
-7. Test:
+Same file: [`deploy/render.env.example`](deploy/render.env.example)
+
+5. Deploy → note API URL → set `PUBLIC_BASE_URL` → **Manual Deploy**  
+6. Test:
 
 ```bash
 curl https://YOUR-RENDER-SERVICE.onrender.com/health
 curl https://YOUR-RENDER-SERVICE.onrender.com/health/ready
 ```
 
-Super admin (seeded): mobile `+919999999999`, OTP `123456`.
+Super admin (after seed): `+919999999999` / OTP `123456`.
 
 ---
 
-## 3. Vercel (frontend) — already live
+## 3. Point Vercel at the API
 
-Your app: **https://rail-voice.vercel.app**
-
-Root Directory: `railvoice-web`
-
-### Environment variable (Vercel → Settings → Environment Variables)
-
-| Key | Value (after Render is live) |
-|-----|------------------------------|
-| `NEXT_PUBLIC_API_URL` | `https://YOUR-RENDER-SERVICE.onrender.com/api/v1` |
-
-Example once you know the Render hostname:
+Vercel → Settings → Environment Variables:
 
 ```text
-NEXT_PUBLIC_API_URL=https://rail-voice-api.onrender.com/api/v1
+NEXT_PUBLIC_API_URL=https://YOUR-RENDER-SERVICE.onrender.com/api/v1
 ```
 
-Redeploy the Vercel project after setting this (Deployments → … → Redeploy).
+Redeploy Vercel. CORS already includes `https://rail-voice.vercel.app`.
 
 ---
 
-## 4. Wire CORS on Render (copy/paste)
+## Smoke test
 
-**Render → Environment** — set exactly:
-
-```text
-CORS_ORIGINS=https://rail-voice.vercel.app,http://localhost:3000
-PUBLIC_BASE_URL=https://YOUR-RENDER-SERVICE.onrender.com
-```
-
-Replace `YOUR-RENDER-SERVICE` with your real Render hostname, then **Manual Redeploy** the API.
-
-Open https://rail-voice.vercel.app and hard-refresh.
+- [ ] https://rail-voice.vercel.app loads  
+- [ ] Feed / login / report work against Render  
+- [ ] Super admin ops console  
 
 ---
 
-## 5. Smoke test checklist
+## Limits (free)
 
-- [ ] https://rail-voice.vercel.app → home feed loads (may be slow on first hit)  
-- [ ] `/login` → OTP `+919876543210` / `123456`  
-- [ ] Report an issue with photos  
-- [ ] Super admin `+919999999999` → Profile → Operations console  
-
----
-
-## Limits to expect (free)
-
-- Render sleeps → first request after idle is slow  
-- Ephemeral disk → uploaded photos may disappear on redeploy (OK for demo)  
-- No Celery beat → no scheduled priority recalcs (create-time AI still works)  
-- Neon free compute suspends → first DB query after idle can be slow  
+- Render / Neon may sleep when idle  
+- Photos on Render disk may reset on redeploy  
+- No Celery on free tier (create-time AI still works)
 
 ---
 
-## Optional: skip Redis completely
+## Later: paid / VPS
 
-Already done when `CELERY_ENABLED=false`. Rate limiting uses in-memory buckets (per instance).
-
----
-
-## When you later want “real” hosting
-
-Use [DEPLOY.md](DEPLOY.md) + a cheap VPS (`docker-compose.prod.yml`) with TLS.
+See [DEPLOY.md](DEPLOY.md).
