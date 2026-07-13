@@ -7,9 +7,9 @@ services:
     name: railvoice-api
     runtime: python
     plan: free
-    rootDir: railvoice-backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: bash scripts/free_boot.sh
+    rootDir: .
+    buildCommand: bash scripts/render_build.sh
+    startCommand: bash scripts/render_start.sh
     healthCheckPath: /health
     envVars:
       - key: APP_ENV

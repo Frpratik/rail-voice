@@ -87,16 +87,23 @@ When Neon is done, say **“Neon done”** (you can paste the redacted host if y
 
 1. Sign up with GitHub: https://dashboard.render.com  
 2. **New → Web Service** → select **Frpratik/rail-voice**  
-3. Settings:
+3. Settings (whole repo — no Root Directory needed):
 
 | Field | Value |
 |-------|--------|
-| **Root Directory** | `railvoice-backend` ← required (typo/empty = build fails) |
+| Repository | `Frpratik/rail-voice` (whole project is fine) |
 | Runtime | Python 3 |
-| Build Command | `pip install -r requirements.txt` |
-| Start Command | `bash scripts/free_boot.sh` |
+| Build Command | `bash scripts/render_build.sh` |
+| Start Command | `bash scripts/render_start.sh` |
 | Instance type | **Free** |
-| Env `PYTHON_VERSION` | `3.12.8` (avoid Render’s default 3.14) |
+| Env `PYTHON_VERSION` | `3.12.8` |
+
+If shell scripts fail on Windows line endings, use these instead:
+
+| Field | Value |
+|-------|--------|
+| Build Command | `pip install -r railvoice-backend/requirements.txt` |
+| Start Command | `cd railvoice-backend && bash scripts/free_boot.sh` |
 
 4. Environment → **Add from .env** — paste this (fill Neon + `SECRET_KEY` first):
 
