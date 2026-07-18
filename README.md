@@ -1,6 +1,17 @@
-"""RailVoice — AI-powered public issue reporting for Indian Railways."""
+# RailVoice
 
-## Backend (Phase 7)
+AI-powered public issue reporting for Indian Railways (Western Railway — Churchgate → Virar).
+
+| | |
+|--|--|
+| **Web** | https://rail-voice.vercel.app |
+| **API** | https://rail-voice.onrender.com |
+| **Docs (baseline)** | **[docs/README.md](docs/README.md)** — full industry documentation |
+| **Repo** | https://github.com/Frpratik/rail-voice |
+
+---
+
+## Backend (implementation)
 
 Production FastAPI backend with PostgreSQL + pgvector, Redis, and Celery.
 
