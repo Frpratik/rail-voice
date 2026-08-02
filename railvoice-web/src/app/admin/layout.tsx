@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { CommandPalette } from "@/components/admin/command-palette";
 
 export default function AdminLayout({
   children,
@@ -13,6 +14,7 @@ export default function AdminLayout({
 
   return (
     <div className="fixed inset-0 z-50 flex bg-background">
+      <CommandPalette />
       <AdminSidebar pathname={pathname} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-card-border bg-card/40 px-5 backdrop-blur lg:h-16 lg:px-8">

@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     s3_secret_key: str = ""
     s3_region: str = "ap-south-1"
 
+    whatsapp_enabled: bool = True
+    whatsapp_verify_token: str = "railvoice_whatsapp_token_2026"
+    whatsapp_api_key: str = ""
+    whatsapp_phone_number_id: str = ""
+
     rate_limit_enabled: bool = True
     rate_limit_backend: str = "auto"  # auto | memory | redis
     rate_limit_otp_per_minute: int = 5
