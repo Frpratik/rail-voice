@@ -33,6 +33,8 @@ def _loaded_attr(instance: object | None, name: str):
 
 
 def user_to_out(user: User) -> UserOut:
+    from app.services.personas import persona_label, user_persona
+
     roles: list[str] = []
     for user_role in _loaded_attr(user, "roles") or []:
         if user_role.revoked_at is not None:
@@ -40,12 +42,15 @@ def user_to_out(user: User) -> UserOut:
         role = _loaded_attr(user_role, "role")
         if role is not None:
             roles.append(role.code)
+    persona = user_persona(user) if roles or not user.is_anonymous else "passenger"
     return UserOut(
         id=user.id,
         display_name=user.display_name,
         is_verified=user.is_verified,
         is_anonymous=user.is_anonymous,
         roles=roles or (["passenger"] if not user.is_anonymous else []),
+        persona=persona,
+        persona_label=persona_label(persona),
     )
 
 

@@ -120,15 +120,21 @@ REDIS_URL=
 OTP_MOCK_MODE=true
 OTP_MOCK_CODE=123456
 GOOGLE_OAUTH_MOCK_MODE=true
+GOOGLE_AUTH_ENABLED=true
+SMS_PROVIDER=console
 RUN_SEED=true
 CORS_ORIGINS=https://rail-voice.vercel.app,http://localhost:3000
 PUBLIC_BASE_URL=https://REPLACE_WITH_YOUR_SERVICE.onrender.com
 LOCAL_STORAGE_PATH=storage/uploads
 STORAGE_BACKEND=local
 RATE_LIMIT_ENABLED=true
+RATE_LIMIT_BACKEND=memory
+RATE_LIMIT_REQUIRE_REDIS_IN_PRODUCTION=false
 ```
 
 Same file: [`deploy/render.env.example`](deploy/render.env.example)
+
+> **Phase 2 note:** Free staging may keep mocks. For production trust (real SMS + Google + Redis limits), see [`docs/phases/phase-2/`](docs/phases/phase-2/README.md) and set `OTP_MOCK_MODE=false`, a live `SMS_PROVIDER`, Upstash `REDIS_URL`, and `GOOGLE_CLIENT_ID`.
 
 5. Deploy → note API URL → set `PUBLIC_BASE_URL` → **Manual Deploy**  
 6. Test:

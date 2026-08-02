@@ -4,12 +4,15 @@ import type {
   DashboardData,
   DuplicateCheckResult,
   Issue,
+  ManagedUser,
   NotificationItem,
   Officer,
+  PaginationMeta,
   Photo,
   Station,
   TimelineEvent,
   User,
+  UserAuditRow,
 } from "./types";
 
 const API_BASE =
@@ -50,9 +53,48 @@ function ensureAnonymousSession(): string {
   return anon;
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
+async function doRefreshToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+      }
+      return null;
+    }
+
+    const body = await res.json();
+    const data = body?.data;
+    if (data?.access_token) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("access_token", data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem("refresh_token", data.refresh_token);
+        }
+      }
+      return data.access_token as string;
+    }
+  } catch {
+    // Ignore network error during silent refresh
+  }
+  return null;
+}
+
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { _isRetry?: boolean } = {}
 ): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {
@@ -86,6 +128,33 @@ export async function apiFetch<T>(
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      !options._isRetry &&
+      !path.startsWith("/auth/otp") &&
+      !path.startsWith("/auth/refresh")
+    ) {
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        if (!refreshPromise) {
+          refreshPromise = doRefreshToken().finally(() => {
+            refreshPromise = null;
+          });
+        }
+        const newToken = await refreshPromise;
+        if (newToken) {
+          return apiFetch<T>(path, {
+            ...options,
+            headers: {
+              ...(options.headers as Record<string, string>),
+              Authorization: `Bearer ${newToken}`,
+            },
+            _isRetry: true,
+          });
+        }
+      }
+    }
+
     const detail = body.detail ?? body.error;
     const message =
       typeof detail === "string"
@@ -287,10 +356,147 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    merge: (
+      primaryId: string,
+      data: { duplicate_ids: string[]; remarks: string }
+    ) =>
+      apiFetch<ApiEnvelope<{ issue: Issue }>>(`/admin/issues/${primaryId}/merge`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
     officers: () =>
       apiFetch<ApiEnvelope<{ items: Officer[] }>>("/admin/officers"),
     downloadPdf: () => downloadAuthed("/admin/reports/issues.pdf", "railvoice-issues.pdf"),
     downloadXlsx: () =>
       downloadAuthed("/admin/reports/issues.xlsx", "railvoice-issues.xlsx"),
+    notifyMain: (remarks?: string) =>
+      apiFetch<ApiEnvelope<{ notified: number; open_issues: number; scope: string }>>(
+        "/admin/reports/notify-main",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            remarks: remarks || "Station report ready for review",
+          }),
+        }
+      ),
+    users: {
+      list: (params?: Record<string, string | number | boolean | undefined>) => {
+        const q = new URLSearchParams();
+        if (params) {
+          Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== "" && v !== null) q.set(k, String(v));
+          });
+        }
+        const qs = q.toString();
+        return apiFetch<ApiEnvelope<{ items: ManagedUser[]; pagination: PaginationMeta }>>(
+          `/admin/users${qs ? `?${qs}` : ""}`
+        );
+      },
+      create: (data: {
+        mobile: string;
+        display_name: string;
+        email?: string;
+        role_code: string;
+        station_id?: string | null;
+        generate_password?: boolean;
+      }) =>
+        apiFetch<ApiEnvelope<{ user: ManagedUser; temporary_password: string | null }>>(
+          "/admin/users",
+          { method: "POST", body: JSON.stringify(data) }
+        ),
+      get: (id: string) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}`),
+      update: (id: string, data: { display_name?: string; email?: string; preferred_language?: string }) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        }),
+      activate: (id: string) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/activate`, { method: "POST" }),
+      deactivate: (id: string) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/deactivate`, { method: "POST" }),
+      lock: (id: string, reason?: string) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/lock`, {
+          method: "POST",
+          body: JSON.stringify({ reason }),
+        }),
+      unlock: (id: string) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/unlock`, { method: "POST" }),
+      resetPassword: (id: string) =>
+        apiFetch<ApiEnvelope<{ temporary_password: string; user: ManagedUser }>>(
+          `/admin/users/${id}/reset-password`,
+          { method: "POST" }
+        ),
+      assignRole: (id: string, data: { role_code: string; station_id?: string | null }) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/assign-role`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+      assignStation: (id: string, station_id: string | null) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/assign-station`, {
+          method: "POST",
+          body: JSON.stringify({ station_id }),
+        }),
+      softDelete: (id: string) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}`, { method: "DELETE" }),
+      restore: (id: string) =>
+        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/restore`, { method: "POST" }),
+      audits: (id: string) =>
+        apiFetch<ApiEnvelope<{ items: UserAuditRow[] }>>(`/admin/users/${id}/audits`),
+      bulkDeactivate: (user_ids: string[]) =>
+        apiFetch<ApiEnvelope<{ updated: number; errors: string[] }>>(
+          `/admin/users/bulk/deactivate`,
+          { method: "POST", body: JSON.stringify({ user_ids }) }
+        ),
+      bulkLock: (user_ids: string[], reason?: string) =>
+        apiFetch<ApiEnvelope<{ updated: number; errors: string[] }>>(
+          `/admin/users/bulk/lock`,
+          { method: "POST", body: JSON.stringify({ user_ids, reason }) }
+        ),
+    },
+  },
+
+  me: {
+    get: () => apiFetch<ApiEnvelope<ManagedUser>>("/me"),
+    update: (data: { display_name?: string; email?: string; preferred_language?: string }) =>
+      apiFetch<ApiEnvelope<User>>("/me", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    changePassword: (data: { current_password?: string; new_password: string }) =>
+      apiFetch<ApiEnvelope<{ message: string }>>("/me/change-password", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    uploadAvatar: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const base = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+      const res = await fetch(`${base}/me/avatar`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || err?.detail || "Upload failed");
+      }
+      return res.json() as Promise<ApiEnvelope<{ avatar_url: string }>>;
+    },
+  },
+
+  search: {
+    text: (q: string, params?: { station_id?: string; limit?: number }) => {
+      const qs = new URLSearchParams({ q });
+      if (params?.station_id) qs.set("station_id", params.station_id);
+      if (params?.limit) qs.set("limit", String(params.limit));
+      return apiFetch<
+        ApiEnvelope<{
+          results: { issue: Issue; relevance_score: number; match_type: string }[];
+        }>
+      >(`/search?${qs}`);
+    },
   },
 };

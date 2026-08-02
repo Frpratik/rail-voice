@@ -7,7 +7,16 @@ from app.models.issue import (
     SystemConfig,
 )
 from app.models.location import Division, IssueCategory, Platform, Station, Zone
-from app.models.user import Notification, OtpRequest, RefreshToken, Role, User, UserRole
+from app.models.user import (
+    AuthAuditEvent,
+    Notification,
+    OtpRequest,
+    RefreshToken,
+    Role,
+    User,
+    UserManagementAudit,
+    UserRole,
+)
 
 __all__ = [
     "Zone",
@@ -20,6 +29,8 @@ __all__ = [
     "UserRole",
     "RefreshToken",
     "OtpRequest",
+    "AuthAuditEvent",
+    "UserManagementAudit",
     "Issue",
     "IssueSupport",
     "IssueTimelineEvent",

@@ -4,12 +4,10 @@ import hashlib
 import secrets
 import uuid
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_value(value: str) -> str:
@@ -40,6 +38,32 @@ def verify_access_token(token: str) -> dict[str, Any] | None:
         return payload
     except JWTError:
         return None
+
+
+def _password_bytes(password: str) -> bytes:
+    """Bcrypt accepts at most 72 bytes — truncate safely on the byte boundary."""
+    raw = password.encode("utf-8")
+    if len(raw) <= 72:
+        return raw
+    return raw[:72]
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("ascii")
+
+
+def verify_password(plain: str, hashed: str | None) -> bool:
+    if not hashed:
+        return False
+    try:
+        return bcrypt.checkpw(_password_bytes(plain), hashed.encode("ascii"))
+    except Exception:
+        return False
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def new_uuid() -> str:

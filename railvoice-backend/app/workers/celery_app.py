@@ -35,6 +35,10 @@ celery_app.conf.update(
             "task": "app.workers.tasks.recalc_trending_scores",
             "schedule": 900.0,
         },
+        "check-sla-breaches": {
+            "task": "app.workers.tasks.check_sla_breaches",
+            "schedule": 1800.0,
+        },
         "daily-ai-summary": {
             "task": "app.workers.tasks.generate_daily_ai_summary",
             "schedule": 86400.0,

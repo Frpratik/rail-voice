@@ -67,9 +67,14 @@ export default function AdminDashboardPage() {
         <p className="mt-2 text-sm text-muted-foreground">
           Sign in with an operations account to view this console.
         </p>
-        <p className="mt-4 rounded-xl bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-          Seed · +919999999999 · OTP 123456
-        </p>
+        {process.env.NEXT_PUBLIC_OTP_MOCK !== "false" && (
+          <p className="mt-4 space-y-1 rounded-xl bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+            <span className="block">Passenger · +919111111111</span>
+            <span className="block">Station Admin · +919888888888</span>
+            <span className="block">Main Admin · +919999999999</span>
+            <span className="block">OTP · 123456</span>
+          </p>
+        )}
         <Link href="/login" className="mt-6 inline-block">
           <Button variant="accent">Sign in</Button>
         </Link>
@@ -96,9 +101,9 @@ export default function AdminDashboardPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-2xl" />
           ))
         ) : (
@@ -115,6 +120,21 @@ export default function AdminDashboardPage() {
               value={kpis?.resolved_today ?? 0}
               icon={CheckCircle2}
               tone="ok"
+            />
+            <StatCard
+              label="Avg resolution (h)"
+              value={
+                kpis?.avg_resolution_hours != null
+                  ? Number(kpis.avg_resolution_hours).toFixed(1)
+                  : "—"
+              }
+              icon={Clock3}
+            />
+            <StatCard
+              label="SLA breaches"
+              value={kpis?.sla_breaches ?? 0}
+              icon={AlertTriangle}
+              tone={(kpis?.sla_breaches ?? 0) > 0 ? "danger" : "default"}
             />
             <StatCard
               label="Emergency open"

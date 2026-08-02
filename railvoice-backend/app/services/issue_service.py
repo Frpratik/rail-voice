@@ -28,16 +28,32 @@ ISSUE_RESPONSE_LOAD = (
 
 class AuthService:
     async def request_otp(self, db: AsyncSession, mobile: str) -> None:
+        import secrets
+
+        from app.services.sms import get_sms_provider
+
         mobile_hash = hash_value(mobile)
-        otp = settings.otp_mock_code if settings.otp_mock_mode else "000000"
-        expires = datetime.now(timezone.utc) + timedelta(minutes=5)
-        db.add(
-            OtpRequest(
-                mobile_hash=mobile_hash,
-                otp_hash=hash_value(otp),
-                expires_at=expires,
-            )
+        if settings.otp_mock_mode:
+            otp = settings.otp_mock_code
+        else:
+            length = max(4, min(8, settings.otp_length))
+            otp = "".join(str(secrets.randbelow(10)) for _ in range(length))
+
+        expires = datetime.now(timezone.utc) + timedelta(seconds=settings.otp_ttl_seconds)
+        row = OtpRequest(
+            mobile_hash=mobile_hash,
+            otp_hash=hash_value(otp),
+            expires_at=expires,
         )
+        db.add(row)
+        await db.flush()
+
+        try:
+            await get_sms_provider().send_otp(mobile, otp)
+        except Exception:
+            await db.delete(row)
+            await db.flush()
+            raise
 
     async def verify_otp(self, db: AsyncSession, mobile: str, otp: str) -> User:
         mobile_hash = hash_value(mobile)
@@ -54,6 +70,15 @@ class AuthService:
             raise ValueError("Too many OTP attempts")
         if otp_row.otp_hash != hash_value(otp):
             otp_row.attempts += 1
+            await db.flush()
+            # Persist attempt count even if the request transaction later rolls back on HTTPException
+            from app.db.session import async_session_factory
+
+            async with async_session_factory() as side:
+                async with side.begin():
+                    side_row = await side.get(OtpRequest, otp_row.id)
+                    if side_row and side_row.verified_at is None:
+                        side_row.attempts = otp_row.attempts
             raise ValueError("Invalid OTP")
 
         otp_row.verified_at = datetime.now(timezone.utc)
@@ -84,6 +109,7 @@ class AuthService:
         user = User(
             display_name=f"User {mobile[-4:]}",
             mobile_hash=mobile_hash,
+            mobile_last4=mobile[-4:],
             is_verified=True,
             is_active=True,
         )
@@ -175,15 +201,19 @@ class AuthService:
             raise ValueError("Invalid refresh token")
 
         if row.revoked_at is not None:
-            # Reuse of revoked token → revoke entire family
-            family_tokens = await db.execute(
-                select(RefreshToken).where(
-                    RefreshToken.family_id == row.family_id,
-                    RefreshToken.revoked_at.is_(None),
-                )
-            )
-            for t in family_tokens.scalars().all():
-                t.revoked_at = now
+            # Reuse of revoked token → revoke entire family (persist outside request rollback)
+            from app.db.session import async_session_factory
+
+            async with async_session_factory() as side:
+                async with side.begin():
+                    family_tokens = await side.execute(
+                        select(RefreshToken).where(
+                            RefreshToken.family_id == row.family_id,
+                            RefreshToken.revoked_at.is_(None),
+                        )
+                    )
+                    for t in family_tokens.scalars().all():
+                        t.revoked_at = now
             raise ValueError("Refresh token reuse detected")
 
         if row.expires_at < now:
@@ -356,6 +386,111 @@ class IssueService:
             .where(Issue.id == issue_id)
         )
         return result.scalar_one_or_none()
+
+    async def merge_issues(
+        self,
+        db: AsyncSession,
+        *,
+        primary_id: uuid.UUID,
+        duplicate_ids: list[uuid.UUID],
+        actor: User,
+        remarks: str,
+    ) -> Issue:
+        primary = await db.get(Issue, primary_id)
+        if not primary:
+            raise ValueError("Primary issue not found")
+        if primary.status == IssueStatus.DUPLICATE_MERGED.value:
+            raise ValueError("Cannot merge into an already-merged issue")
+
+        unique_dupes = []
+        seen: set[uuid.UUID] = set()
+        for did in duplicate_ids:
+            if did == primary_id or did in seen:
+                continue
+            seen.add(did)
+            unique_dupes.append(did)
+        if not unique_dupes:
+            raise ValueError("No valid duplicate ids provided")
+
+        now = datetime.now(timezone.utc)
+        for did in unique_dupes:
+            dup = await db.get(Issue, did)
+            if not dup:
+                raise ValueError(f"Duplicate issue not found: {did}")
+            if dup.status == IssueStatus.DUPLICATE_MERGED.value:
+                raise ValueError(f"Issue already merged: {dup.issue_number}")
+
+            # Transfer unique supports
+            supports = await db.execute(select(IssueSupport).where(IssueSupport.issue_id == did))
+            for support in supports.scalars().all():
+                existing = await db.execute(
+                    select(IssueSupport).where(
+                        IssueSupport.issue_id == primary_id,
+                        IssueSupport.user_id == support.user_id,
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    await db.delete(support)
+                else:
+                    support.issue_id = primary_id
+
+            from_status = dup.status
+            dup.merged_into_id = primary_id
+            dup.status = IssueStatus.DUPLICATE_MERGED.value
+            dup.is_public = False
+            db.add(
+                IssueTimelineEvent(
+                    issue_id=dup.id,
+                    event_type=TimelineEventType.MERGED.value,
+                    from_status=from_status,
+                    to_status=IssueStatus.DUPLICATE_MERGED.value,
+                    actor_id=actor.id,
+                    remarks=remarks,
+                    visibility=Visibility.PUBLIC.value,
+                    metadata_={"merged_into_id": str(primary_id)},
+                )
+            )
+            if dup.creator_id:
+                from app.models.user import Notification
+
+                db.add(
+                    Notification(
+                        user_id=dup.creator_id,
+                        type="merged",
+                        title=f"Issue {dup.issue_number} merged",
+                        body=f"Merged into {primary.issue_number}. {remarks[:120]}",
+                        issue_id=primary_id,
+                    )
+                )
+
+        # Recalculate primary support count
+        count = await db.scalar(
+            select(func.count()).select_from(IssueSupport).where(IssueSupport.issue_id == primary_id)
+        )
+        primary.support_count = count or 0
+        primary.priority_score = compute_priority_score(
+            support_count=primary.support_count,
+            severity=primary.severity,
+            created_at=primary.created_at or now,
+            trending_score=float(primary.trending_score or 0),
+            ai_priority_score=float(primary.ai_priority_score or 0.5),
+        )
+        db.add(
+            IssueTimelineEvent(
+                issue_id=primary.id,
+                event_type=TimelineEventType.MERGED.value,
+                from_status=primary.status,
+                to_status=primary.status,
+                actor_id=actor.id,
+                remarks=remarks,
+                visibility=Visibility.PUBLIC.value,
+                metadata_={"merged_duplicate_ids": [str(d) for d in unique_dupes]},
+            )
+        )
+        await db.flush()
+        detailed = await self.get_issue_detail(db, primary_id)
+        assert detailed is not None
+        return detailed
 
 
 class DuplicateFoundError(Exception):

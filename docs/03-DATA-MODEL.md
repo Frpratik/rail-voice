@@ -8,6 +8,7 @@ Relational schema on PostgreSQL with **pgvector** embeddings on `issues`. Migrat
 |----------|---------|
 | `001` | Initial schema + `CREATE EXTENSION vector` |
 | `002` | `issues.assignee_id`, `issues.assigned_at`; notifications → issues FK |
+| `003` | `auth_audit_events` (Phase 2) |
 
 Source: `railvoice-backend/alembic/versions/`, models under `railvoice-backend/app/models/`.
 
@@ -26,7 +27,7 @@ Zone 1──* Division 1──* Station 1──* Platform
                       └── assignee → User
 
 User *──* Role (via user_roles, optional location scope)
-User 1──* RefreshToken | OtpRequest | Notification
+User 1──* RefreshToken | OtpRequest | Notification | AuthAuditEvent
 ```
 
 ## 3.3 Core tables
@@ -50,6 +51,7 @@ User 1──* RefreshToken | OtpRequest | Notification
 | `user_roles` | Assignment; optional `location_type` / `location_id` |
 | `refresh_tokens` | Opaque refresh hash + `family_id` for rotation |
 | `otp_requests` | Hashed OTP, attempts, expiry |
+| `auth_audit_events` | Auth security events (OTP/Google/refresh/logout) |
 
 ### Issues
 

@@ -12,7 +12,11 @@ from starlette.responses import Response
 
 from app.api.v1.router import api_router
 from app.core.config import settings
-from app.core.rate_limit import RateLimitMiddleware
+from app.core.idempotency import IdempotencyMiddleware
+from app.core.logging_config import correlation_id_var, setup_logging
+from app.core.rate_limit import RateLimitMiddleware, ping_redis_for_startup
+
+setup_logging()
 
 REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"])
 REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request latency", ["method", "endpoint"])
@@ -22,6 +26,9 @@ REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request laten
 async def lifespan(app: FastAPI):
     Path(settings.local_storage_path).mkdir(parents=True, exist_ok=True)
     errors = settings.validate_for_runtime()
+    redis_error = ping_redis_for_startup()
+    if redis_error:
+        errors.append(redis_error)
     if errors:
         raise RuntimeError("Unsafe production configuration: " + "; ".join(errors))
     yield
@@ -29,7 +36,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.0.0",
+    version="1.3.0",
     description="AI-powered public issue reporting for Indian Railways",
     lifespan=lifespan,
     docs_url="/docs",
@@ -44,6 +51,7 @@ async def metrics_and_correlation(request: Request, call_next):
 
     correlation_id = request.headers.get("X-Correlation-Id", str(uuid.uuid4()))
     request.state.correlation_id = correlation_id
+    correlation_id_var.set(correlation_id)
     start = time.perf_counter()
     response = await call_next(request)
     duration = time.perf_counter() - start
@@ -54,6 +62,7 @@ async def metrics_and_correlation(request: Request, call_next):
     return response
 
 
+app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
 app.add_middleware(

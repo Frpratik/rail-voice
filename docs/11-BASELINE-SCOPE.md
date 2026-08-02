@@ -44,22 +44,34 @@ Future work starts a **new phase document set** under e.g. `docs/phases/phase-2/
 | SLA KPI accuracy | Dashboard fields partly stubbed |
 | Hardened prod APP_ENV | Staging mocks on free |
 
-## 11.4 Suggested Phase 2 themes (for next doc pack)
+## 11.4 Phase 2 (shipped)
 
-Pick explicitly before building; then produce `docs/phases/phase-2/README.md`:
+**Theme:** Trust & auth (production trust) — API **1.1.0**, schema Alembic **003**.
 
-1. **Trust & auth** — real OTP + Google; remove mocks in prod  
-2. **Media** — S3, CDN, scan pipeline  
-3. **Ops depth** — scoped queues, merge, SLA, richer analytics  
-4. **Reliability** — paid always-on API, Redis rate limits, backups  
+Documentation: [`docs/phases/phase-2/`](phases/phase-2/README.md)
+
+## 11.4b Phase 3 (shipped)
+
+**Theme:** Advanced ops & durable evidence — API **1.2.0**.
+
+- S3/R2 storage backend  
+- Admin duplicate merge  
+- Location-scoped admin queues  
+- Real SLA KPIs  
+- Passenger search UI  
+
+Documentation: [`docs/phases/phase-3/`](phases/phase-3/README.md)
+
+Later candidates:
+
+4. **Reliability** — paid always-on API, backups  
 5. **Quality** — E2E tests, AI eval dashboards  
+6. **Integrations** — RailMadad, push/email  
 
 ## 11.5 Versioning
 
 | Field | Value |
 |-------|-------|
 | Baseline doc version | 1.0.0 |
-| App version (API) | 1.0.0 (`app/main.py`) |
-| Schema head | Alembic `002` |
-
-When Phase 2 ships, bump product version and add a changelog entry linking to the new phase docs.
+| App version (API) | 1.2.0 (`app/main.py`) |
+| Schema head | Alembic `003` |

@@ -36,6 +36,8 @@ async def get_current_user_optional(
         user = result.scalar_one_or_none()
         if not user or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+        if getattr(user, "is_locked", False):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is locked")
         return user
 
     if x_anonymous_session:
@@ -108,16 +110,18 @@ async def require_official(user: Annotated[User, Depends(get_current_user)]) -> 
     return user
 
 
-async def require_min_role(min_role: RoleCode):
-    async def _checker(user: Annotated[User, Depends(get_current_user)]) -> User:
-        from app.core.enums import ROLE_LEVEL
+async def require_user_manager(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """Master Admin or Station Admin may manage users (scoped in service)."""
+    from app.services.personas import PERSONA_MAIN_ADMIN, PERSONA_STATION_ADMIN, user_persona
 
-        user_level = max(
-            (ROLE_LEVEL.get(RoleCode(ur.role.code), 0) for ur in user.roles if ur.revoked_at is None),
-            default=ROLE_LEVEL[RoleCode.PASSENGER],
-        )
-        if user_level < ROLE_LEVEL[min_role]:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
-        return user
+    if user_persona(user) not in {PERSONA_MAIN_ADMIN, PERSONA_STATION_ADMIN}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User management access required")
+    return user
 
-    return _checker
+
+async def require_main_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
+    from app.services.personas import PERSONA_MAIN_ADMIN, user_persona
+
+    if user_persona(user) != PERSONA_MAIN_ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Main Admin access required")
+    return user

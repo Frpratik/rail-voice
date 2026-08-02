@@ -22,6 +22,7 @@ export default function AdminIssuesPage() {
   const [escalateTarget, setEscalateTarget] = useState<"station_manager" | "division" | "zone">(
     "division"
   );
+  const [mergeIds, setMergeIds] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-issues"],
@@ -39,6 +40,7 @@ export default function AdminIssuesPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-issues"] });
     setSelectedId(null);
     setRemarks("");
+    setMergeIds("");
   };
 
   const updateMutation = useMutation({
@@ -73,6 +75,21 @@ export default function AdminIssuesPage() {
       api.admin.escalate(selectedId!, { target: escalateTarget, remarks }),
     onSuccess: () => {
       toast.success("Issue escalated");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: () => {
+      const duplicate_ids = mergeIds
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return api.admin.merge(selectedId!, { duplicate_ids, remarks });
+    },
+    onSuccess: () => {
+      toast.success("Duplicates merged into primary");
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -276,6 +293,48 @@ export default function AdminIssuesPage() {
                 onClick={() => escalateMutation.mutate()}
               >
                 Escalate
+              </Button>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedId && selected && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <Card elevated className="space-y-4 p-6">
+              <div>
+                <h2 className="text-display text-lg font-semibold tracking-tight">
+                  Merge duplicates
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Keep this issue as primary. Paste other issue UUIDs (comma or space
+                  separated) to fold them in and transfer unique supports.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="mergeIds">Duplicate issue IDs</Label>
+                <Textarea
+                  id="mergeIds"
+                  value={mergeIds}
+                  onChange={(e) => setMergeIds(e.target.value)}
+                  placeholder="uuid-1, uuid-2"
+                />
+              </div>
+              <Button
+                variant="accent"
+                disabled={
+                  mergeIds.trim().length < 8 ||
+                  remarks.length < 5 ||
+                  mergeMutation.isPending
+                }
+                onClick={() => mergeMutation.mutate()}
+              >
+                Merge into {selected.issue_number}
               </Button>
             </Card>
           </motion.div>

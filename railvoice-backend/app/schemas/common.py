@@ -54,6 +54,8 @@ class UserOut(BaseModel):
     is_verified: bool
     is_anonymous: bool = False
     roles: list[str] = []
+    persona: str = "passenger"
+    persona_label: str = "Passenger"
 
 
 class TokenResponse(BaseModel):
@@ -206,6 +208,19 @@ class AssignRequest(BaseModel):
 class EscalateRequest(BaseModel):
     target: str = Field(..., pattern=r"^(station_manager|division|zone)$")
     remarks: str = Field(..., min_length=5, max_length=2000)
+
+
+class MergeRequest(BaseModel):
+    duplicate_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=20)
+    remarks: str = Field(..., min_length=5, max_length=2000)
+
+
+class NotifyMainAdminRequest(BaseModel):
+    remarks: str = Field(
+        default="Station report ready for review",
+        min_length=5,
+        max_length=500,
+    )
 
 
 class IssueOut(BaseModel):

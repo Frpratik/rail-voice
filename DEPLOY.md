@@ -56,9 +56,15 @@ NEXT_PUBLIC_API_URL=http://YOUR_SERVER_IP/api/v1
 CORS_ORIGINS=http://YOUR_SERVER_IP
 OTP_MOCK_MODE=false
 GOOGLE_OAUTH_MOCK_MODE=false
+SMS_PROVIDER=twilio
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+REDIS_URL=redis://redis:6379/0
+RATE_LIMIT_BACKEND=redis
 ```
 
-> Tip: for first production smoke you can temporarily keep OTP mock **only on a private VM**, but the API will refuse to start with mocks when `APP_ENV=production`. Use a staging `APP_ENV=staging` + `DEBUG=true` override if you still need mock OTP.
+> Tip: for first production smoke you can temporarily keep OTP mock **only on a private VM**, but the API will refuse to start with mocks when `APP_ENV=production`. Use a staging `APP_ENV=staging` + `DEBUG=true` override if you still need mock OTP. Production also requires a real `SMS_PROVIDER` (not `console`) and reachable Redis when `RATE_LIMIT_REQUIRE_REDIS_IN_PRODUCTION=true`.
 
 To allow a staging deploy with mock OTP, set in `.env.production`:
 

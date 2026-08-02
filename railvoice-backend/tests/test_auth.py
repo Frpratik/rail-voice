@@ -44,6 +44,30 @@ async def test_invalid_otp_rejected(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_google_mock_login(client: AsyncClient):
+    response = await client.post(
+        f"{API}/auth/google",
+        json={
+            "id_token": "mock-token",
+            "email": "phase2.google@railvoice.local",
+            "name": "Phase2 Google",
+            "google_id": "mock-phase2-google",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["user"]["email"] == "phase2.google@railvoice.local"
+    assert "access_token" in data
+
+
+@pytest.mark.asyncio
+async def test_otp_request_includes_mock_otp_in_mock_mode(client: AsyncClient):
+    response = await client.post(f"{API}/auth/otp/request", json={"mobile": "+919333333333"})
+    assert response.status_code == 200
+    assert response.json()["data"].get("mock_otp") == "123456"
+
+
+@pytest.mark.asyncio
 async def test_logout_requires_auth(client: AsyncClient):
     response = await client.post(f"{API}/auth/logout")
     assert response.status_code == 401

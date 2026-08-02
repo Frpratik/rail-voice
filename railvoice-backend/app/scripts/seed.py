@@ -137,22 +137,107 @@ def seed(session: Session) -> None:
         if not session.get(SystemConfig, key):
             session.add(SystemConfig(key=key, value=value))
 
-    admin_mobile_hash = hash_value("+919999999999")
-    admin = session.execute(select(User).where(User.mobile_hash == admin_mobile_hash)).scalar_one_or_none()
-    if not admin:
-        admin = User(
-            display_name="Super Admin",
-            mobile_hash=admin_mobile_hash,
+    # --- Three product personas (demo OTP = 123456 in mock mode) ---
+    def _ensure_role(user: User, role_code: str, *, location_type: str | None = None, location_id=None) -> None:
+        role = session.execute(select(Role).where(Role.code == role_code)).scalar_one()
+        existing = session.execute(
+            select(UserRole).where(
+                UserRole.user_id == user.id,
+                UserRole.role_id == role.id,
+                UserRole.revoked_at.is_(None),
+            )
+        ).scalar_one_or_none()
+        if existing:
+            if location_type and location_id:
+                existing.location_type = location_type
+                existing.location_id = location_id
+            return
+        session.add(
+            UserRole(
+                user_id=user.id,
+                role_id=role.id,
+                location_type=location_type,
+                location_id=location_id,
+            )
+        )
+
+    # 1) Main Admin — all stations
+    main_hash = hash_value("+919999999999")
+    main_admin = session.execute(select(User).where(User.mobile_hash == main_hash)).scalar_one_or_none()
+    if not main_admin:
+        main_admin = User(
+            display_name="Main Admin",
+            mobile_hash=main_hash,
             is_verified=True,
             is_active=True,
         )
-        session.add(admin)
+        session.add(main_admin)
         session.flush()
-        super_role = session.execute(select(Role).where(Role.code == "super_admin")).scalar_one()
-        session.add(UserRole(user_id=admin.id, role_id=super_role.id))
+    else:
+        main_admin.display_name = "Main Admin"
+        main_admin.is_verified = True
+        main_admin.is_active = True
+    _ensure_role(main_admin, "super_admin")
+
+    # 2) Station Admin — Bandra only
+    bandra = session.execute(select(Station).where(Station.code == "BA")).scalar_one_or_none()
+    station_hash = hash_value("+919888888888")
+    station_admin = session.execute(select(User).where(User.mobile_hash == station_hash)).scalar_one_or_none()
+    if bandra:
+        if not station_admin:
+            station_admin = User(
+                display_name="Bandra Station Admin",
+                mobile_hash=station_hash,
+                is_verified=True,
+                is_active=True,
+            )
+            session.add(station_admin)
+            session.flush()
+        else:
+            station_admin.display_name = "Bandra Station Admin"
+            station_admin.is_verified = True
+            station_admin.is_active = True
+        _ensure_role(
+            station_admin,
+            "station_manager",
+            location_type="station",
+            location_id=bandra.id,
+        )
+
+    # 3) Passenger — normal user
+    passenger_hash = hash_value("+919111111111")
+    passenger = session.execute(select(User).where(User.mobile_hash == passenger_hash)).scalar_one_or_none()
+    if not passenger:
+        passenger = User(
+            display_name="Passenger Demo",
+            mobile_hash=passenger_hash,
+            is_verified=True,
+            is_active=True,
+        )
+        session.add(passenger)
+        session.flush()
+    else:
+        passenger.display_name = "Passenger Demo"
+        passenger.is_verified = True
+        passenger.is_active = True
+    _ensure_role(passenger, "passenger")
+
+    # Assign demo passenger to Bandra so Station Admin can manage them
+    if bandra and passenger:
+        passenger.assigned_station_id = bandra.id
+        passenger.mobile_last4 = "1111"
+    if station_admin:
+        station_admin.mobile_last4 = "8888"
+        station_admin.assigned_station_id = bandra.id if bandra else None
+    if main_admin:
+        main_admin.mobile_last4 = "9999"
 
     session.commit()
-    print("Seed completed: WR zone, Mumbai division, 29 stations, roles, categories, config")
+    print(
+        "Seed completed: 3 personas — "
+        "Passenger +919111111111 | Station Admin (Bandra) +919888888888 | "
+        "Main Admin +919999999999 (OTP 123456 in mock mode)"
+    )
 
 
 def main() -> None:

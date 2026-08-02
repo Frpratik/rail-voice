@@ -42,19 +42,25 @@ class HybridSearchService:
         if station_id:
             base_filter.append(Issue.station_id == station_id)
 
-        result = await db.execute(select(Issue).where(*base_filter).limit(200))
-        issues = result.scalars().all()
+        cosine_dist = Issue.embedding.cosine_distance(embedding)
+        result = await db.execute(
+            select(Issue, (1.0 - cosine_dist).label("similarity"))
+            .where(*base_filter)
+            .order_by(cosine_dist.asc())
+            .limit(100)
+        )
+        rows = result.all()
+        issues = [row[0] for row in rows]
+        issue_sim_map = {row[0].id: float(row[1]) for row in rows}
 
         semantic_ranking: list[tuple[uuid.UUID, float]] = []
         keyword_ranking: list[tuple[uuid.UUID, float]] = []
         tokens = set(query.lower().split())
 
         for issue in issues:
-            emb = embedding_service.to_list(issue.embedding)
-            if emb:
-                sim = embedding_service.cosine_similarity(embedding, emb)
-                if sim > 0.3:
-                    semantic_ranking.append((issue.id, sim))
+            sim = issue_sim_map.get(issue.id, 0.0)
+            if sim > 0.3:
+                semantic_ranking.append((issue.id, sim))
 
             text = f"{issue.title or ''} {issue.description}".lower()
             keyword_hits = sum(1 for t in tokens if t in text)

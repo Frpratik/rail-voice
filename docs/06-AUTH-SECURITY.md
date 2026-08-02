@@ -35,15 +35,25 @@ Cookie: refresh_token=...       # path=/api/v1/auth
 
 ## 6.5 Rate limiting
 
-Middleware: `app/core/rate_limit.py` (in-memory buckets per instance).
+Middleware: `app/core/rate_limit.py`.
+
+| Backend | When |
+|---------|------|
+| Memory | Default / `RATE_LIMIT_BACKEND=memory` / no Redis |
+| Redis | `RATE_LIMIT_BACKEND=redis` or `auto` with `REDIS_URL` |
 
 | Bucket | Default |
 |--------|---------|
-| OTP request | 5 / min / IP |
+| OTP request (per IP) | 5 / min |
+| OTP request (per mobile) | 5 / hour |
 | Writes | 30 / min / IP |
 | Reads | 120 / min / IP |
 
-Returns **429** with `Retry-After`. Nginx (VPS) can add another auth zone.
+Returns **429** with `Retry-After`. Production with `RATE_LIMIT_REQUIRE_REDIS_IN_PRODUCTION=true` fails closed on OTP if Redis is down.
+
+## 6.5.1 Auth audit (Phase 2)
+
+Table `auth_audit_events` records OTP, Google, refresh, and logout events (no secrets).
 
 ## 6.6 Product abuse controls
 

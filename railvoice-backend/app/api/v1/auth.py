@@ -2,13 +2,15 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.deps import get_current_user, get_db
+from app.core.rate_limit import check_mobile_otp_limit
+from app.core.security import hash_value
 from app.models.user import RefreshToken, User, UserRole
 from app.schemas.common import (
     AnonymousSessionOut,
@@ -21,9 +23,19 @@ from app.schemas.common import (
     TokenResponse,
 )
 from app.schemas.mappers import user_to_out
+from app.services.audit import write_auth_audit, write_auth_audit_committed
 from app.services.issue_service import auth_service
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+def _client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return None
 
 
 def _set_refresh_cookie(response: Response, refresh_value: str) -> None:
@@ -31,7 +43,7 @@ def _set_refresh_cookie(response: Response, refresh_value: str) -> None:
         key="refresh_token",
         value=refresh_value,
         httponly=True,
-        secure=not settings.debug,
+        secure=settings.is_production or not settings.debug,
         samesite="lax",
         path="/api/v1/auth",
         max_age=settings.refresh_token_expire_days * 86400,
@@ -61,13 +73,47 @@ async def _token_envelope(db: AsyncSession, user: User, response: Response) -> E
 @router.post("/otp/request")
 async def request_otp(
     body: OTPRequestBody,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Envelope[dict]:
-    await auth_service.request_otp(db, body.mobile)
+    mobile_hash = hash_value(body.mobile)
+    allowed, retry_after = check_mobile_otp_limit(mobile_hash)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many OTP requests for this mobile",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    try:
+        await auth_service.request_otp(db, body.mobile)
+    except Exception as exc:
+        await write_auth_audit_committed(
+            event_type="otp.request",
+            success=False,
+            mobile_hash=mobile_hash,
+            ip=_client_ip(request),
+            user_agent=request.headers.get("User-Agent"),
+            detail={"error": "sms_send_failed"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to send OTP. Please try again shortly.",
+        ) from exc
+
+    await write_auth_audit(
+        db,
+        event_type="otp.request",
+        success=True,
+        mobile_hash=mobile_hash,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+        detail={"provider": settings.sms_provider if not settings.otp_mock_mode else "mock"},
+    )
     return Envelope(
         data={
             "message": "OTP sent",
-            "expires_in_seconds": 300,
+            "expires_in_seconds": settings.otp_ttl_seconds,
             "retry_after_seconds": 60,
             **({"mock_otp": settings.otp_mock_code} if settings.otp_mock_mode else {}),
         },
@@ -78,28 +124,54 @@ async def request_otp(
 @router.post("/otp/verify")
 async def verify_otp(
     body: OTPVerifyBody,
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Envelope[TokenResponse]:
+    mobile_hash = hash_value(body.mobile)
     try:
         user = await auth_service.verify_otp(db, body.mobile, body.otp)
     except ValueError as exc:
+        await write_auth_audit_committed(
+            event_type="otp.verify.fail",
+            success=False,
+            mobile_hash=mobile_hash,
+            ip=_client_ip(request),
+            user_agent=request.headers.get("User-Agent"),
+            detail={"reason": str(exc)},
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    await write_auth_audit(
+        db,
+        event_type="otp.verify.success",
+        success=True,
+        actor_user_id=user.id,
+        mobile_hash=mobile_hash,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
     return await _token_envelope(db, user, response)
 
 
 @router.post("/google")
 async def google_auth(
     body: GoogleAuthRequest,
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Envelope[TokenResponse]:
+    if not settings.google_auth_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google sign-in is disabled")
+
     google_id: str | None = None
     email = body.email
     name = body.name or "Google User"
     avatar_url = body.avatar_url
 
-    if settings.google_client_id and not settings.google_oauth_mock_mode:
+    if not settings.google_oauth_mock_mode:
+        if not settings.google_client_id:
+            raise HTTPException(status_code=503, detail="Google sign-in is not configured")
         try:
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token
@@ -110,10 +182,17 @@ async def google_auth(
                 settings.google_client_id,
             )
             google_id = info["sub"]
-            email = info.get("email") or email
-            name = info.get("name") or name
-            avatar_url = info.get("picture") or avatar_url
+            email = info.get("email")
+            name = info.get("name") or "Google User"
+            avatar_url = info.get("picture")
         except Exception as exc:
+            await write_auth_audit_committed(
+                event_type="google.login",
+                success=False,
+                ip=_client_ip(request),
+                user_agent=request.headers.get("User-Agent"),
+                detail={"error": "invalid_id_token"},
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid Google ID token",
@@ -135,11 +214,21 @@ async def google_auth(
         name=name,
         avatar_url=avatar_url,
     )
+    await write_auth_audit(
+        db,
+        event_type="google.login",
+        success=True,
+        actor_user_id=user.id,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+        detail={"mock": settings.google_oauth_mock_mode},
+    )
     return await _token_envelope(db, user, response)
 
 
 @router.post("/refresh")
 async def refresh_access_token(
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
     body: RefreshRequest = RefreshRequest(),
@@ -151,7 +240,24 @@ async def refresh_access_token(
     try:
         user, access_token, new_refresh = await auth_service.rotate_refresh_token(db, token_value)
     except ValueError as exc:
+        event = "token.refresh.reuse" if "reuse" in str(exc).lower() else "token.refresh"
+        await write_auth_audit_committed(
+            event_type=event,
+            success=False,
+            ip=_client_ip(request),
+            user_agent=request.headers.get("User-Agent"),
+            detail={"reason": str(exc)},
+        )
         raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    await write_auth_audit(
+        db,
+        event_type="token.refresh",
+        success=True,
+        actor_user_id=user.id,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
 
     user_result = await db.execute(
         select(User)
@@ -190,6 +296,7 @@ async def create_anonymous_session(
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -199,5 +306,13 @@ async def logout(
     )
     for token in result.scalars().all():
         token.revoked_at = datetime.now(timezone.utc)
+    await write_auth_audit(
+        db,
+        event_type="logout",
+        success=True,
+        actor_user_id=user.id,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
     response.delete_cookie("refresh_token", path="/api/v1/auth")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

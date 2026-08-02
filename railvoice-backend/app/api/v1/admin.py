@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 import uuid
 
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.ai.daily_summary import daily_summary_generator
+from app.core.config import settings
 from app.core.deps import get_db, require_official
 from app.core.enums import IssueStatus, TERMINAL_STATUSES, TimelineEventType, Visibility
 from app.models.issue import Issue, IssueTimelineEvent
@@ -17,12 +18,15 @@ from app.schemas.common import (
     DashboardKPIs,
     Envelope,
     EscalateRequest,
+    MergeRequest,
     Meta,
+    NotifyMainAdminRequest,
     StatusUpdateRequest,
 )
 from app.schemas.mappers import issue_to_out
-from app.services.issue_service import ISSUE_RESPONSE_LOAD
+from app.services.issue_service import ISSUE_RESPONSE_LOAD, issue_service
 from app.services.report_service import issues_to_pdf, issues_to_xlsx
+from app.services.scope import apply_issue_location_scope, enforce_issue_location_scope
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -70,41 +74,110 @@ ESCALATE_STATUS = {
 }
 
 
+def _scoped_issues(query, officer: User):
+    return apply_issue_location_scope(query, officer)
+
+
+async def _compute_sla_kpis(db: AsyncSession, officer: User) -> tuple[float | None, int]:
+    open_statuses = [s.value for s in IssueStatus if s not in TERMINAL_STATUSES]
+    now = datetime.now(timezone.utc)
+
+    # Average resolution hours (last 90 days)
+    since = now - timedelta(days=90)
+    avg_q = _scoped_issues(
+        select(
+            func.avg(
+                func.extract("epoch", Issue.resolved_at - Issue.created_at) / 3600.0
+            )
+        ).where(
+            Issue.resolved_at.is_not(None),
+            Issue.resolved_at >= since,
+        ),
+        officer,
+    )
+    avg_val = await db.scalar(avg_q)
+    avg_hours = round(float(avg_val), 2) if avg_val is not None else None
+
+    # Open issues past severity SLA
+    open_q = _scoped_issues(
+        select(Issue.id, Issue.severity, Issue.created_at).where(Issue.status.in_(open_statuses)),
+        officer,
+    )
+    rows = (await db.execute(open_q)).all()
+    breaches = 0
+    for _, severity, created_at in rows:
+        if not created_at:
+            continue
+        hours = settings.sla_hours_for_severity(int(severity or 3))
+        deadline = created_at + timedelta(hours=hours)
+        if now > deadline:
+            breaches += 1
+    return avg_hours, breaches
+
+
 @router.get("/dashboard", response_model=Envelope[dict])
 async def admin_dashboard(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_official)],
+    officer: Annotated[User, Depends(require_official)],
 ) -> Envelope[dict]:
     open_statuses = [s.value for s in IssueStatus if s not in TERMINAL_STATUSES]
-    open_count = await db.scalar(select(func.count()).select_from(Issue).where(Issue.status.in_(open_statuses)))
+    open_count = await db.scalar(
+        _scoped_issues(
+            select(func.count()).select_from(Issue).where(Issue.status.in_(open_statuses)),
+            officer,
+        )
+    )
     in_progress = await db.scalar(
-        select(func.count())
-        .select_from(Issue)
-        .where(Issue.status.in_([IssueStatus.WORK_IN_PROGRESS.value, IssueStatus.ACTION_STARTED.value]))
+        _scoped_issues(
+            select(func.count())
+            .select_from(Issue)
+            .where(
+                Issue.status.in_(
+                    [IssueStatus.WORK_IN_PROGRESS.value, IssueStatus.ACTION_STARTED.value]
+                )
+            ),
+            officer,
+        )
     )
     today = datetime.now(timezone.utc).date()
     resolved_today = await db.scalar(
-        select(func.count()).select_from(Issue).where(func.date(Issue.closed_at) == today)
+        _scoped_issues(
+            select(func.count()).select_from(Issue).where(func.date(Issue.closed_at) == today),
+            officer,
+        )
     )
     emergency = await db.scalar(
-        select(func.count())
-        .select_from(Issue)
-        .where(Issue.is_emergency.is_(True), Issue.status.notin_([s.value for s in TERMINAL_STATUSES]))
+        _scoped_issues(
+            select(func.count())
+            .select_from(Issue)
+            .where(
+                Issue.is_emergency.is_(True),
+                Issue.status.notin_([s.value for s in TERMINAL_STATUSES]),
+            ),
+            officer,
+        )
     )
+    avg_hours, sla_breaches = await _compute_sla_kpis(db, officer)
     kpis = DashboardKPIs(
         open_issues=open_count or 0,
         in_progress=in_progress or 0,
         resolved_today=resolved_today or 0,
-        avg_resolution_hours=None,
-        sla_breaches=0,
+        avg_resolution_hours=avg_hours,
+        sla_breaches=sla_breaches,
         emergency_open=emergency or 0,
     )
     top = await db.execute(
-        select(Issue)
-        .options(*ISSUE_RESPONSE_LOAD)
-        .where(Issue.is_public.is_(True))
-        .order_by(Issue.priority_score.desc())
-        .limit(5)
+        _scoped_issues(
+            select(Issue)
+            .options(*ISSUE_RESPONSE_LOAD)
+            .where(
+                Issue.is_public.is_(True),
+                Issue.status != IssueStatus.DUPLICATE_MERGED.value,
+            )
+            .order_by(Issue.priority_score.desc())
+            .limit(5),
+            officer,
+        )
     )
     return Envelope(
         data={
@@ -118,23 +191,55 @@ async def admin_dashboard(
 @router.get("/issues")
 async def admin_issue_queue(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_official)],
+    officer: Annotated[User, Depends(require_official)],
     status_filter: str | None = None,
     limit: int = 50,
 ) -> Envelope[dict]:
     query = (
         select(Issue)
         .options(*ISSUE_RESPONSE_LOAD)
-        .where(Issue.is_public.is_(True))
+        .where(
+            Issue.is_public.is_(True),
+            Issue.status != IssueStatus.DUPLICATE_MERGED.value,
+        )
         .order_by(Issue.priority_score.desc())
         .limit(limit)
     )
     if status_filter:
         query = query.where(Issue.status == status_filter)
+    query = _scoped_issues(query, officer)
     result = await db.execute(query)
     issues = result.scalars().all()
     return Envelope(
         data={"items": [issue_to_out(i).model_dump(mode="json") for i in issues]},
+        meta=Meta(),
+    )
+
+
+@router.post("/issues/{issue_id}/merge")
+async def merge_issues(
+    issue_id: uuid.UUID,
+    body: MergeRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    officer: Annotated[User, Depends(require_official)],
+) -> Envelope[dict]:
+    primary = await db.get(Issue, issue_id)
+    if not primary:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    enforce_issue_location_scope(officer, primary)
+
+    try:
+        primary = await issue_service.merge_issues(
+            db,
+            primary_id=issue_id,
+            duplicate_ids=body.duplicate_ids,
+            actor=officer,
+            remarks=body.remarks,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Envelope(
+        data={"issue": issue_to_out(primary).model_dump(mode="json")},
         meta=Meta(),
     )
 
@@ -149,6 +254,7 @@ async def update_issue_status(
     issue = await db.get(Issue, issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
+    enforce_issue_location_scope(officer, issue)
 
     allowed = VALID_TRANSITIONS.get(issue.status, set())
     if body.status not in allowed and body.status != issue.status:
@@ -186,8 +292,6 @@ async def update_issue_status(
         )
     await db.flush()
 
-    from app.services.issue_service import issue_service
-
     detailed = await issue_service.get_issue_detail(db, issue.id)
     return Envelope(
         data={
@@ -196,7 +300,7 @@ async def update_issue_status(
                 "id": str(event.id),
                 "from_status": from_status,
                 "to_status": body.status,
-                "created_at": event.created_at.isoformat(),
+                "created_at": event.created_at.isoformat() if event.created_at else None,
             },
         },
         meta=Meta(),
@@ -213,6 +317,7 @@ async def assign_issue(
     issue = await db.get(Issue, issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
+    enforce_issue_location_scope(officer, issue)
     assignee = await db.get(User, body.assignee_id)
     if not assignee or not assignee.is_active:
         raise HTTPException(status_code=404, detail="Assignee not found")
@@ -262,8 +367,6 @@ async def assign_issue(
             )
         )
     await db.flush()
-    from app.services.issue_service import issue_service
-
     detailed = await issue_service.get_issue_detail(db, issue.id)
     return Envelope(
         data={"issue": issue_to_out(detailed).model_dump(mode="json")},
@@ -281,6 +384,7 @@ async def escalate_issue(
     issue = await db.get(Issue, issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
+    enforce_issue_location_scope(officer, issue)
     target_status = ESCALATE_STATUS[body.target]
     from_status = issue.status
     issue.status = target_status
@@ -307,8 +411,6 @@ async def escalate_issue(
             )
         )
     await db.flush()
-    from app.services.issue_service import issue_service
-
     detailed = await issue_service.get_issue_detail(db, issue.id)
     return Envelope(
         data={"issue": issue_to_out(detailed).model_dump(mode="json")},
@@ -348,7 +450,7 @@ async def list_officers(
 @router.get("/reports/issues.xlsx")
 async def export_issues_xlsx(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_official)],
+    officer: Annotated[User, Depends(require_official)],
     station_code: str | None = Query(None),
     status_filter: str | None = Query(None),
     limit: int = Query(500, ge=1, le=2000),
@@ -360,6 +462,7 @@ async def export_issues_xlsx(
         query = query.where(Issue.status == status_filter)
     if station_code:
         query = query.join(Issue.station).where(Station.code == station_code.upper())
+    query = _scoped_issues(query, officer)
     result = await db.execute(query.order_by(Issue.created_at.desc()))
     issues = list(result.scalars().all())
     content = issues_to_xlsx(issues)
@@ -373,7 +476,7 @@ async def export_issues_xlsx(
 @router.get("/reports/issues.pdf")
 async def export_issues_pdf(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_official)],
+    officer: Annotated[User, Depends(require_official)],
     station_code: str | None = Query(None),
     status_filter: str | None = Query(None),
     limit: int = Query(200, ge=1, le=500),
@@ -385,6 +488,7 @@ async def export_issues_pdf(
         query = query.where(Issue.status == status_filter)
     if station_code:
         query = query.join(Issue.station).where(Station.code == station_code.upper())
+    query = _scoped_issues(query, officer)
     result = await db.execute(query.order_by(Issue.priority_score.desc()))
     issues = list(result.scalars().all())
     content = issues_to_pdf(issues)
@@ -403,8 +507,6 @@ async def daily_ai_summary(
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
-    from app.core.config import settings
-
     engine = create_engine(settings.database_url_sync)
     with Session(engine) as session:
         summary = daily_summary_generator.generate(session, target_date)
@@ -414,17 +516,83 @@ async def daily_ai_summary(
 @router.get("/spam-queue")
 async def spam_review_queue(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(require_official)],
+    officer: Annotated[User, Depends(require_official)],
     limit: int = 50,
 ) -> Envelope[dict]:
-    result = await db.execute(
+    query = _scoped_issues(
         select(Issue)
         .where(Issue.status == IssueStatus.SPAM.value)
         .order_by(Issue.created_at.desc())
-        .limit(limit)
+        .limit(limit),
+        officer,
     )
+    result = await db.execute(query)
     issues = result.scalars().all()
     return Envelope(
         data={"items": [issue_to_out(i).model_dump(mode="json") for i in issues]},
+        meta=Meta(),
+    )
+
+
+@router.post("/reports/notify-main")
+async def notify_main_admin(
+    body: NotifyMainAdminRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    officer: Annotated[User, Depends(require_official)],
+) -> Envelope[dict]:
+    """Station Admin sends a briefing notice to all Main Admins."""
+    from app.core.enums import RoleCode
+    from app.models.user import Role, UserRole
+    from app.services.personas import PERSONA_MAIN_ADMIN, PERSONA_STATION_ADMIN, user_persona
+    from app.services.scope import official_location_scopes
+
+    persona = user_persona(officer)
+    if persona not in {PERSONA_STATION_ADMIN, PERSONA_MAIN_ADMIN}:
+        raise HTTPException(status_code=403, detail="Only station or main admins can send reports")
+
+    open_statuses = [s.value for s in IssueStatus if s not in TERMINAL_STATUSES]
+    open_count = await db.scalar(
+        _scoped_issues(
+            select(func.count()).select_from(Issue).where(Issue.status.in_(open_statuses)),
+            officer,
+        )
+    )
+    scopes = official_location_scopes(officer)
+    scope_note = "all stations" if scopes is None else "scoped station(s)"
+
+    main_role = (
+        await db.execute(select(Role).where(Role.code == RoleCode.SUPER_ADMIN.value))
+    ).scalar_one()
+    main_users = await db.execute(
+        select(User)
+        .options(selectinload(User.roles).selectinload(UserRole.role))
+        .join(UserRole, UserRole.user_id == User.id)
+        .where(
+            UserRole.role_id == main_role.id,
+            UserRole.revoked_at.is_(None),
+            User.is_active.is_(True),
+        )
+    )
+    notified = 0
+    for main_user in main_users.scalars().unique().all():
+        if user_persona(main_user) != PERSONA_MAIN_ADMIN:
+            continue
+        db.add(
+            Notification(
+                user_id=main_user.id,
+                type="station_report",
+                title=f"Report from {officer.display_name}",
+                body=f"{body.remarks} · {open_count or 0} open issues ({scope_note})",
+                issue_id=None,
+            )
+        )
+        notified += 1
+
+    if notified == 0:
+        raise HTTPException(status_code=404, detail="No Main Admin users found")
+
+    await db.flush()
+    return Envelope(
+        data={"notified": notified, "open_issues": open_count or 0, "scope": scope_note},
         meta=Meta(),
     )

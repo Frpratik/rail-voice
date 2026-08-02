@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -32,6 +33,15 @@ class User(Base):
     anonymous_session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_reason: Mapped[str | None] = mapped_column(String(255))
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    mobile_last4: Mapped[str | None] = mapped_column(String(4))
+    assigned_station_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stations.id")
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -39,7 +49,12 @@ class User(Base):
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="selectin")
+    roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="noload")
+    assigned_station: Mapped["Station | None"] = relationship(
+        "Station",
+        foreign_keys=[assigned_station_id],
+        lazy="noload",
+    )
     issues_created: Mapped[list["Issue"]] = relationship(
         back_populates="creator",
         foreign_keys="Issue.creator_id",
@@ -59,8 +74,8 @@ class UserRole(Base):
     assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    user: Mapped[User] = relationship(back_populates="roles")
-    role: Mapped[Role] = relationship(lazy="selectin")
+    user: Mapped[User] = relationship(back_populates="roles", lazy="noload")
+    role: Mapped[Role] = relationship(lazy="noload")
 
 
 class RefreshToken(Base):
@@ -85,6 +100,38 @@ class OtpRequest(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuthAuditEvent(Base):
+    __tablename__ = "auth_audit_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    mobile_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(512))
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+
+
+class UserManagementAudit(Base):
+    __tablename__ = "user_management_audits"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    action: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    actor_name: Mapped[str | None] = mapped_column(String(100))
+    target_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
+    target_user_name: Mapped[str | None] = mapped_column(String(100))
+    previous_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    new_value: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(512))
 
 
 class Notification(Base):

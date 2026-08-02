@@ -72,13 +72,36 @@ class DuplicateDetectionService:
         embedding = (await embedding_service.embed([query_text]))[0]
         threshold = effective_duplicate_threshold()
 
+        if embedding_service.uses_openai:
+            cosine_dist = Issue.embedding.cosine_distance(embedding)
+            query = (
+                select(Issue, (1.0 - cosine_dist).label("similarity"))
+                .where(
+                    Issue.station_id == station_id,
+                    Issue.embedding.isnot(None),
+                    Issue.is_public.is_(True),
+                    Issue.status.notin_([s.value for s in DUPLICATE_SEARCH_EXCLUDED]),
+                    cosine_dist <= (1.0 - threshold),
+                )
+                .order_by(cosine_dist.asc())
+                .limit(limit)
+            )
+            result = await db.execute(query)
+            rows = result.all()
+            return [SimilarIssue(issue=row[0], similarity=float(row[1])) for row in rows]
+
+        # Candidate selection via vector distance for local embeddings with token weighting
+        cosine_dist = Issue.embedding.cosine_distance(embedding)
         result = await db.execute(
-            select(Issue).where(
+            select(Issue)
+            .where(
                 Issue.station_id == station_id,
                 Issue.embedding.isnot(None),
                 Issue.is_public.is_(True),
                 Issue.status.notin_([s.value for s in DUPLICATE_SEARCH_EXCLUDED]),
             )
+            .order_by(cosine_dist.asc())
+            .limit(50)
         )
         issues = result.scalars().all()
 

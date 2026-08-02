@@ -3,11 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Sparkles, TrainFront } from "lucide-react";
+import { ArrowRight, Search, Sparkles, TrainFront } from "lucide-react";
 import { useState } from "react";
 import { IssueCard } from "@/components/issues/issue-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { IssueCardSkeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -21,17 +22,34 @@ const SORTS = [
 
 export default function HomePage() {
   const [sort, setSort] = useState("newest");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQ, setSearchQ] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["issues", sort],
     queryFn: () => api.issues.list({ sort, limit: 20 }),
+    enabled: searchQ.length < 2,
   });
 
-  const issues = data?.data.items ?? [];
+  const {
+    data: searchData,
+    isLoading: searchLoading,
+    error: searchError,
+  } = useQuery({
+    queryKey: ["search", searchQ],
+    queryFn: () => api.search.text(searchQ, { limit: 20 }),
+    enabled: searchQ.length >= 2,
+  });
+
+  const issues =
+    searchQ.length >= 2
+      ? (searchData?.data.results ?? []).map((r) => r.issue)
+      : (data?.data.items ?? []);
+  const feedLoading = searchQ.length >= 2 ? searchLoading : isLoading;
+  const feedError = searchQ.length >= 2 ? searchError : error;
 
   return (
     <div className="space-y-10">
-      {/* Hero — brand-first composition */}
       <section className="relative overflow-hidden rounded-[28px] border border-card-border bg-card noise-overlay">
         <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-accent/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 left-10 h-64 w-64 rounded-full bg-success/10 blur-3xl" />
@@ -96,37 +114,76 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Feed controls */}
       <section>
-        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-display text-xl font-semibold tracking-tight">
-              Live issues
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ranked across the Churchgate → Virar corridor
-            </p>
+        <div className="mb-5 flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-display text-xl font-semibold tracking-tight">
+                Live issues
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Ranked across the Churchgate → Virar corridor
+              </p>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {SORTS.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => {
+                    setSort(s.value);
+                    setSearchQ("");
+                    setSearchInput("");
+                  }}
+                  className={cn(
+                    "shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold tracking-tight transition-all",
+                    sort === s.value && searchQ.length < 2
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-card text-muted-foreground ring-1 ring-card-border hover:text-foreground"
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {SORTS.map((s) => (
-              <button
-                key={s.value}
+
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSearchQ(searchInput.trim());
+            }}
+          >
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search issues — litter, lift, platform…"
+                className="pl-10"
+                aria-label="Search issues"
+              />
+            </div>
+            <Button type="submit" variant="outline" disabled={searchInput.trim().length < 2}>
+              Search
+            </Button>
+            {searchQ.length >= 2 && (
+              <Button
                 type="button"
-                onClick={() => setSort(s.value)}
-                className={cn(
-                  "shrink-0 rounded-full px-3.5 py-2 text-xs font-semibold tracking-tight transition-all",
-                  sort === s.value
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-card text-muted-foreground ring-1 ring-card-border hover:text-foreground"
-                )}
+                variant="ghost"
+                onClick={() => {
+                  setSearchQ("");
+                  setSearchInput("");
+                }}
               >
-                {s.label}
-              </button>
-            ))}
-          </div>
+                Clear
+              </Button>
+            )}
+          </form>
         </div>
 
-        {error && (
+        {feedError && (
           <div className="mb-5 rounded-2xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive">
             Couldn’t load issues. Is the API running at{" "}
             <span className="font-mono text-xs">
@@ -137,14 +194,18 @@ export default function HomePage() {
         )}
 
         <div className="grid gap-4">
-          {isLoading &&
+          {feedLoading &&
             Array.from({ length: 4 }).map((_, i) => <IssueCardSkeleton key={i} />)}
 
-          {!isLoading && issues.length === 0 && (
+          {!feedLoading && issues.length === 0 && (
             <EmptyState
               icon={Sparkles}
-              title="No issues yet"
-              description="Be the first to report something on the corridor. Your voice helps stations act faster."
+              title={searchQ.length >= 2 ? "No matches" : "No issues yet"}
+              description={
+                searchQ.length >= 2
+                  ? "Try a different phrase or clear search to browse the live feed."
+                  : "Be the first to report something on the corridor. Your voice helps stations act faster."
+              }
               actionLabel="Report an issue"
               actionHref="/report"
             />

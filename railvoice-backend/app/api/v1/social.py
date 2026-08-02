@@ -144,7 +144,14 @@ async def upload_photo(
         raise HTTPException(status_code=400, detail="Photo limit reached for this issue")
 
     data = await file.read()
-    mime = file.content_type or storage_service.guess_mime(file.filename or "upload.jpg")
+    try:
+        mime = storage_service.validate_image_bytes(data)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_IMAGE", "message": str(exc)},
+        ) from exc
+
     validation = image_validator.validate(
         mime_type=mime,
         file_size_bytes=len(data),

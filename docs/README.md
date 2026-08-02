@@ -24,6 +24,13 @@
 | 10 | [Testing Strategy](10-TESTING.md) | QA, engineers |
 | 11 | [Baseline Scope & Roadmap](11-BASELINE-SCOPE.md) | Product, planning |
 
+### Phases
+
+| Phase | Document | Status |
+|-------|----------|--------|
+| 2 | [Production Trust](phases/phase-2/README.md) | Shipped (API 1.1.0) |
+| 3 | [Advanced Ops & Media](phases/phase-3/README.md) | Shipped (API 1.2.0) |
+
 ---
 
 ## Quick links
@@ -64,6 +71,6 @@ RailVoice/
 2. **Backend work** → Data Model, API Reference, Auth & Security, AI Module.  
 3. **Frontend work** → Frontend Application + API Reference.  
 4. **Ship / debug prod** → Deployment + Operations.  
-5. **Next product phase** → Baseline Scope & Roadmap (what is in / out of this baseline).
+5. **Next product phase** → [Phase 2 — Production Trust](phases/phase-2/README.md) (auth, OTP, Redis limits); baseline remains in `docs/01`–`11`.
 
-Subsequent phases should add a dated folder or appendix (e.g. `docs/phases/phase-2/`) rather than overwriting this baseline unless a breaking change requires a version bump.
+Subsequent phases add folders under `docs/phases/` rather than overwriting this baseline unless a breaking change requires a version bump.

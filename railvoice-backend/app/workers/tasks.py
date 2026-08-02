@@ -95,3 +95,56 @@ def send_notification(
         )
         session.commit()
     return {"user_id": user_id, "title": title, "body": body, "status": "stored"}
+
+
+@celery_app.task(name="app.workers.tasks.check_sla_breaches", queue="high")
+def check_sla_breaches() -> int:
+    """Scan open issues and auto-escalate if resolution SLA hours exceeded."""
+    from app.core.enums import IssueStatus, TERMINAL_STATUSES, TimelineEventType, Visibility
+    from app.models.issue import IssueTimelineEvent
+
+    open_statuses = [s.value for s in IssueStatus if s not in TERMINAL_STATUSES]
+    escalated_count = 0
+    now = datetime.now(timezone.utc)
+
+    with SyncSession() as session:
+        issues = session.execute(
+            select(Issue).where(Issue.status.in_(open_statuses))
+        ).scalars().all()
+
+        for issue in issues:
+            if not issue.created_at:
+                continue
+            sla_hours = settings.sla_hours_for_severity(int(issue.severity or 3))
+            deadline = issue.created_at + timedelta(hours=sla_hours)
+
+            if now > deadline:
+                target_status = None
+                if issue.status not in {
+                    IssueStatus.FORWARDED_STATION_MANAGER.value,
+                    IssueStatus.FORWARDED_DIVISION.value,
+                    IssueStatus.FORWARDED_ZONE.value,
+                }:
+                    target_status = IssueStatus.FORWARDED_STATION_MANAGER.value
+                elif issue.status == IssueStatus.FORWARDED_STATION_MANAGER.value:
+                    target_status = IssueStatus.FORWARDED_DIVISION.value
+
+                if target_status and issue.status != target_status:
+                    from_status = issue.status
+                    issue.status = target_status
+                    session.add(
+                        IssueTimelineEvent(
+                            issue_id=issue.id,
+                            event_type=TimelineEventType.ESCALATED.value,
+                            from_status=from_status,
+                            to_status=target_status,
+                            remarks=f"Automated SLA breach escalation ({sla_hours}h SLA limit exceeded)",
+                            visibility=Visibility.PUBLIC.value,
+                            metadata_={"automated_sla_escalation": True, "sla_hours": sla_hours},
+                        )
+                    )
+                    escalated_count += 1
+
+        if escalated_count > 0:
+            session.commit()
+    return escalated_count

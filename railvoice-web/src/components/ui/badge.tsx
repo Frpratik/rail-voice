@@ -3,18 +3,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase",
+  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase contrast-more:border contrast-more:border-current",
   {
     variants: {
       variant: {
-        default: "bg-primary/8 text-primary",
-        accent: "bg-accent/12 text-accent",
-        success: "bg-success/12 text-success",
-        warning: "bg-warning/12 text-warning",
-        destructive: "bg-destructive/12 text-destructive",
-        muted: "bg-muted text-muted-foreground normal-case tracking-normal font-medium",
-        emergency: "bg-destructive/15 text-destructive animate-pulse",
-        outline: "border border-border text-muted-foreground normal-case tracking-normal font-medium",
+        default: "bg-primary/10 text-primary dark:text-primary-foreground font-semibold",
+        accent: "bg-accent/15 text-accent-foreground dark:text-accent font-semibold",
+        success: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold",
+        warning: "bg-amber-500/15 text-amber-800 dark:text-amber-300 font-semibold",
+        destructive: "bg-rose-500/15 text-rose-700 dark:text-rose-300 font-semibold",
+        muted: "bg-muted text-foreground/80 normal-case tracking-normal font-medium",
+        emergency: "bg-rose-500/20 text-rose-700 dark:text-rose-300 animate-pulse font-bold",
+        outline: "border border-border text-foreground/80 normal-case tracking-normal font-medium",
       },
     },
     defaultVariants: { variant: "default" },
