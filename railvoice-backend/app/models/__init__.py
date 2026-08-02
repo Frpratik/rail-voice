@@ -18,6 +18,8 @@ from app.models.user import (
     UserRole,
 )
 
+from app.models.emergency import EmergencyAlert
+
 __all__ = [
     "Zone",
     "Division",
@@ -38,4 +40,5 @@ __all__ = [
     "Comment",
     "Notification",
     "SystemConfig",
+    "EmergencyAlert",
 ]

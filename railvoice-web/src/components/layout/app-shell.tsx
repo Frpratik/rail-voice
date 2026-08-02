@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { EmergencyBanner } from "@/components/layout/emergency-banner";
+
 function LogoMark({ className }: { className?: string }) {
   return (
     <span
@@ -56,14 +58,16 @@ export function AppHeader() {
   const isLogin = pathname.startsWith("/login");
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-40 transition-all duration-300",
-        scrolled
-          ? "border-b border-card-border bg-card/80 shadow-[0_8px_30px_rgba(10,11,13,0.04)] backdrop-blur-2xl"
-          : "border-b border-transparent bg-transparent"
-      )}
-    >
+    <>
+      <EmergencyBanner />
+      <header
+        className={cn(
+          "sticky top-0 z-40 transition-all duration-300",
+          scrolled
+            ? "border-b border-card-border bg-card/80 shadow-[0_8px_30px_rgba(10,11,13,0.04)] backdrop-blur-2xl"
+            : "border-b border-transparent bg-transparent"
+        )}
+      >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2.5">
           <LogoMark className="transition-transform duration-300 group-hover:scale-105" />
@@ -145,6 +149,7 @@ export function AppHeader() {
         </div>
       </div>
     </header>
+    </>
   );
 }
 
