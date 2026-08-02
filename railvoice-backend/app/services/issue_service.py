@@ -336,6 +336,12 @@ class IssueService:
         await db.flush()
 
         try:
+            from app.services.gamification_service import gamification_service
+            await gamification_service.award_points(db, creator.id, "issue_created")
+        except Exception as exc:
+            logger.warning(f"Failed to award gamification points: {exc}")
+
+        try:
             from app.core.config import settings as _settings
             from app.workers.tasks import recalc_trending_scores
 

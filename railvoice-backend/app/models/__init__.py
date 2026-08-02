@@ -19,6 +19,7 @@ from app.models.user import (
 )
 
 from app.models.emergency import EmergencyAlert
+from app.models.gamification import UserReputation
 
 __all__ = [
     "Zone",
@@ -41,4 +42,5 @@ __all__ = [
     "Notification",
     "SystemConfig",
     "EmergencyAlert",
+    "UserReputation",
 ]
