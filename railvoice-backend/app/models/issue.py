@@ -126,6 +126,7 @@ class IssuePhoto(Base):
     mime_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     thumbnail_key: Mapped[str | None] = mapped_column(String(500))
+    perceptual_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     scan_status: Mapped[str] = mapped_column(String(20), default="pending")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

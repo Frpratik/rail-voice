@@ -163,6 +163,10 @@ async def upload_photo(
             detail={"code": "INVALID_IMAGE", "message": "Image rejected", "flags": validation.flags},
         )
 
+    from app.ai.visual_verifier import visual_verifier
+
+    p_hash, scan_status, visual_flags = await visual_verifier.verify_upload(db, data)
+
     key = storage_service.build_key(issue_id=issue_id, filename=file.filename or "photo.jpg")
     await storage_service.save_bytes(key, data, mime)
     photo = IssuePhoto(
@@ -171,7 +175,8 @@ async def upload_photo(
         storage_key=key,
         mime_type=mime,
         file_size_bytes=len(data),
-        scan_status="passed" if validation.is_valid else "flagged",
+        perceptual_hash=p_hash,
+        scan_status=scan_status,
         sort_order=count or 0,
     )
     db.add(photo)

@@ -38,6 +38,6 @@ def test_check_sla_breaches_escalates_expired_issues():
                 IssueTimelineEvent.issue_id == issue.id,
                 IssueTimelineEvent.event_type == "escalated",
             )
-        ).scalar_one_or_none()
+        ).scalars().first()
         assert event is not None
         assert "SLA breach" in (event.remarks or "")
