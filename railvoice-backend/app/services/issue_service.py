@@ -71,14 +71,6 @@ class AuthService:
         if otp_row.otp_hash != hash_value(otp):
             otp_row.attempts += 1
             await db.flush()
-            # Persist attempt count even if the request transaction later rolls back on HTTPException
-            from app.db.session import async_session_factory
-
-            async with async_session_factory() as side:
-                async with side.begin():
-                    side_row = await side.get(OtpRequest, otp_row.id)
-                    if side_row and side_row.verified_at is None:
-                        side_row.attempts = otp_row.attempts
             raise ValueError("Invalid OTP")
 
         otp_row.verified_at = datetime.now(timezone.utc)

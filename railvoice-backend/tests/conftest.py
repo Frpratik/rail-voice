@@ -5,11 +5,21 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.config import settings
 from app.main import app
 
 API = "/api/v1"
 ADMIN_MOBILE = "+919999999999"
 MOCK_OTP = "123456"
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting():
+    settings.rate_limit_enabled = False
+    settings.google_oauth_mock_mode = True
+    yield
+    settings.rate_limit_enabled = False
+    settings.google_oauth_mock_mode = True
 
 
 @pytest.fixture

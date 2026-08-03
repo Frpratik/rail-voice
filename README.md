@@ -117,33 +117,39 @@ railvoice-backend/
 | `summarizer.py` | Issue summaries |
 | `daily_summary.py` | Admin daily narrative |
 | `image_validator.py` | Photo validation |
+| `visual_verifier.py` | 64-bit dHash perceptual visual verification & duplicate image detection |
+| `sla_predictor.py` | AI SLA velocity risk engine & predictive escalation radar |
+| `voice_assistant.py` | Multilingual vernacular voice parser (Hindi, Marathi, Gujarati, Hinglish, English) |
 | `pipeline.py` | Orchestrates all on create |
 
-### AI API Endpoints
+### Production Innovation Features & API Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/v1/search?q=` | Hybrid search |
-| `POST /api/v1/search/semantic` | Semantic search |
-| `GET /api/v1/admin/analytics/ai-insights/daily-summary` | Daily AI summary |
-| `GET /api/v1/admin/spam-queue` | Spam review queue |
+| Feature | Module / Endpoint | Description |
+|---------|-------------------|-------------|
+| **AI Vernacular Voice Assistant** | `POST /api/v1/voice/parse`<br>`POST /api/v1/voice/create-issue` | Spoken grievance parsing in Hindi, Marathi, Gujarati, Hinglish & English with station extraction |
+| **Predictive SLA Risk Radar** | `GET /api/v1/admin/sla-risk-radar` | Real-time predictive SLA breach velocity forecasting & escalation queue |
+| **WhatsApp Conversational Bot** | `POST /api/v1/whatsapp/webhook`<br>`POST /api/v1/whatsapp/simulate` | WhatsApp native multi-turn reporting bot & webhook simulation |
+| **Visual Verification & Tamper Detection** | `app/ai/visual_verifier.py` | 64-bit dHash image authentication & duplicate photo fraud prevention |
+| **Emergency Safety Alert Network** | `GET /api/v1/emergency/alerts`<br>`POST /api/v1/emergency/alerts` | Real-time emergency hazard broadcasts for active commuters |
+| **Leaderboard & Gamification** | `GET /api/v1/gamification/leaderboard/users`<br>`GET /api/v1/gamification/reputation/me` | Civic karma points, badges, user & station community leaderboards |
+| **Command Center Command K** | `src/components/admin/command-palette.tsx` | Instant keyboard-driven Command+K palette across operations |
 
-### Implemented Endpoints (MVP)
+### Implemented Endpoints
 
 | Module | Endpoints |
 |--------|-----------|
-| Auth | OTP, anonymous session, logout |
+| Auth | OTP, anonymous session, Google OAuth (mock/live), logout |
 | Stations | List, get by code |
 | Issues | Create, check duplicates, list, detail, support |
-| Admin | Dashboard, queue, status update |
-
-### Next Phase
-
-Phase 8: Next.js frontend — see `railvoice-web/`
+| Voice | Parse vernacular transcript, create voice issue |
+| WhatsApp | Inbound webhook, outbound reply, simulate |
+| Emergency | List active alerts, create alert, deactivate alert |
+| Gamification | User leaderboard, station leaderboard, my reputation |
+| Admin | Dashboard, queue, status update, SLA risk radar |
 
 ---
 
-## Frontend (Phase 8)
+## Frontend (Phase 8 & Production Features)
 
 ```bash
 cd railvoice-web
@@ -155,18 +161,20 @@ npm run dev
 Web: http://localhost:3000  
 Requires API at http://localhost:8000
 
-### Frontend screens
+### Frontend screens & components
 
-| Screen | Route |
-|--------|-------|
-| Home feed | `/` |
-| Report + duplicate detection | `/report` |
-| Issue detail + timeline | `/issues/[id]` |
-| Station issues | `/stations/[code]` |
-| Login (OTP) | `/login` |
-| Profile | `/profile` |
-| Admin dashboard | `/admin/dashboard` |
-| Admin issue queue | `/admin/issues` |
+| Screen / Component | Route / Component | Description |
+|--------------------|-------------------|-------------|
+| Home feed | `/` | Live issue feed & search |
+| Report + Voice AI | `/report` | Interactive 3-step report + AI Vernacular Voice Assistant modal |
+| Leaderboard | `/leaderboard` | User & station community rankings |
+| Issue detail | `/issues/[id]` | Detail, timeline, visual AI authentication badge |
+| Station issues | `/stations/[code]` | Station-scoped grievance queue |
+| Login (OTP/Google) | `/login` | Mobile OTP & Google single sign-on |
+| Profile & Rep | `/profile` | User settings + Karma Points & Badge card |
+| Admin dashboard | `/admin/dashboard` | KPIs, SLA Risk Radar, WhatsApp Simulator, Emergency Broadcast modal |
+| Admin issue queue | `/admin/issues` | Operations triage queue |
+| Command Palette | `Cmd+K` | Quick navigation across operations |
 
 ## Testing (Phase 10)
 

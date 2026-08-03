@@ -17,6 +17,8 @@ async def test_idempotency_key_prevents_duplicate_processing(
         "description": f"Unique idempotency description {uid} with sufficient length to bypass duplicate filter",
         "station_id": bandra_station_id,
         "title": f"Idempotency Test {uid}",
+        "force_create": True,
+        "divergence_reason": "Testing idempotency cache key response bypass",
     }
 
     # First request

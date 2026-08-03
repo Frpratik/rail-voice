@@ -32,9 +32,11 @@ async def test_anonymous_session(client: AsyncClient):
     assert body["limits"]["issues_per_24h"] == 3
 
 
+import uuid
+
 @pytest.mark.asyncio
 async def test_invalid_otp_rejected(client: AsyncClient):
-    mobile = "+919222222222"
+    mobile = f"+919{uuid.uuid4().int % 1000000000:09d}"
     await client.post(f"{API}/auth/otp/request", json={"mobile": mobile})
     response = await client.post(
         f"{API}/auth/otp/verify",
@@ -56,7 +58,7 @@ async def test_google_mock_login(client: AsyncClient):
     )
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["user"]["email"] == "phase2.google@railvoice.local"
+    assert data["user"]["display_name"] == "Phase2 Google"
     assert "access_token" in data
 
 
