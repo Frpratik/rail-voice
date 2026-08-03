@@ -14,6 +14,7 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/empty-state";
 import { api, ApiError } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { saveOfflineReport } from "@/lib/offline-queue";
 import type { SimilarIssue } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +66,22 @@ export default function ReportPage() {
       toast.error("Please select a station");
       return;
     }
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const offlineId = crypto.randomUUID();
+      await saveOfflineReport({
+        id: offlineId,
+        title: title || "Offline Grievance Report",
+        description,
+        station_id: stationId,
+        photoBlob: photoFiles[0] || undefined,
+        createdAt: Date.now(),
+        status: "queued",
+      });
+      toast.success("⚡ Offline Mode: Report queued in IndexedDB. Will auto-sync when cellular signal resumes!");
+      router.push("/");
+      return;
+    }
+
     setChecking(true);
     try {
       await ensureSession();

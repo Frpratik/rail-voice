@@ -1,0 +1,17 @@
+{
+  "short_name": "RailVoice",
+  "name": "RailVoice — Indian Railways Grievance & Ops Intelligence",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "description": "AI-powered public issue reporting for Indian Railways with offline-first support."
+}

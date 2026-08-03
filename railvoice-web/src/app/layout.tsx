@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Sora } from "next/font/google";
 import { Toaster } from "sonner";
 import { AppHeader, BottomNav, SiteFooter } from "@/components/layout/app-shell";
+import { OfflineQueueBanner } from "@/components/offline-queue-banner";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import "./globals.css";
@@ -25,6 +26,7 @@ export const metadata: Metadata = {
   },
   description:
     "AI-powered community issue reporting for Western Railway — Churchgate to Virar.",
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
@@ -46,6 +48,7 @@ export default function RootLayout({
         <ThemeProvider>
           <QueryProvider>
             <div className="flex min-h-screen flex-col">
+              <OfflineQueueBanner />
               <AppHeader />
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 sm:px-6 md:pb-12 md:pt-8">
                 {children}
