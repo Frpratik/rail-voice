@@ -14,6 +14,7 @@ import {
   Filter,
   ArrowRight,
   Sparkles,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +89,17 @@ export function CommandPalette({
         shortcut: "G A",
         action: () => {
           router.push("/admin/analytics");
+          handleClose();
+        },
+      },
+      {
+        id: "nav-leaderboard",
+        category: "Navigation",
+        label: "Go to Leaderboard & Civic Rankings",
+        icon: Trophy,
+        shortcut: "G L",
+        action: () => {
+          router.push("/leaderboard");
           handleClose();
         },
       },

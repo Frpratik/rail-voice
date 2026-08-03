@@ -81,6 +81,7 @@ export function AppHeader() {
             {[
               { href: "/", label: "Feed" },
               { href: "/nearby", label: "Corridor" },
+              { href: "/leaderboard", label: "Leaderboard" },
               { href: "/report", label: "Report" },
             ].map((item) => {
               const active =
