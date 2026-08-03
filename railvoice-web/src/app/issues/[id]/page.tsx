@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { IssueTimeline } from "@/components/issues/issue-timeline";
+import { CSATFeedbackModal } from "@/components/issues/csat-feedback-modal";
 import { SupportButton } from "@/components/issues/support-button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -237,6 +238,12 @@ export default function IssueDetailPage() {
           </p>
         )}
       </Card>
+
+      <CSATFeedbackModal
+        issueId={issue.id}
+        currentStatus={issue.status}
+        onFeedbackSubmitted={() => queryClient.invalidateQueries({ queryKey: ["issue", id] })}
+      />
 
       <Card className="p-6">
         <h2 className="mb-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">

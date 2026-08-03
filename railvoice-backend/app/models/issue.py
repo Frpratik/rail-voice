@@ -48,6 +48,7 @@ class Issue(Base):
     ai_priority_score: Mapped[float | None] = mapped_column(Numeric(5, 4))
     spam_score: Mapped[float | None] = mapped_column(Numeric(5, 4))
     is_emergency: Mapped[bool] = mapped_column(Boolean, default=False)
+    reopen_count: Mapped[int] = mapped_column(Integer, default=0)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True)
     train_number: Mapped[str | None] = mapped_column(String(10))
     coach_number: Mapped[str | None] = mapped_column(String(10))
@@ -161,6 +162,20 @@ class SystemConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class IssueFeedback(Base):
+    __tablename__ = "issue_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issue_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), unique=True, nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    comments: Mapped[str | None] = mapped_column(Text)
+    is_reopened: Mapped[bool] = mapped_column(Boolean, default=False)
+    reopen_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    issue: Mapped[Issue] = relationship()
 
 
 from app.models.location import IssueCategory, Station  # noqa: E402
