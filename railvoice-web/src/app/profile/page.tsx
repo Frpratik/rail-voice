@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
 import { isOpsPersona, personaLabel, resolvePersona } from "@/lib/roles";
+import { ReputationCard } from "@/components/profile/reputation-card";
 
 export default function ProfilePage() {
   const { user, setAuth, logout, accessToken } = useAuthStore();
@@ -137,6 +138,8 @@ export default function ProfilePage() {
       className="mx-auto max-w-md space-y-4"
     >
       <PageHeader eyebrow="Account" title={user.display_name} />
+
+      <ReputationCard />
 
       <Card elevated className="space-y-4 p-6">
         <div className="flex items-center gap-4">

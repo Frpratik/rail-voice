@@ -2,8 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, Inbox } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, Inbox, ShieldAlert } from "lucide-react";
+import { EmergencyBroadcastModal } from "@/components/admin/emergency-broadcast-modal";
+import { WhatsAppSimulatorCard } from "@/components/admin/whatsapp-simulator-card";
+import { SLARiskRadar } from "@/components/admin/sla-risk-radar";
 import { IssueCard } from "@/components/issues/issue-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,6 +58,7 @@ function StatCard({
 }
 
 export default function AdminDashboardPage() {
+  const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: () => api.admin.dashboard(),
@@ -87,17 +92,30 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
+      <EmergencyBroadcastModal
+        isOpen={emergencyModalOpen}
+        onClose={() => setEmergencyModalOpen(false)}
+      />
+
       <PageHeader
         eyebrow="Operations"
         title="Overview"
         description="Live station performance and AI-ranked priority queue."
         action={
-          <Link href="/admin/issues">
-            <Button variant="outline">
-              Open queue
-              <ArrowUpRight className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setEmergencyModalOpen(true)}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold gap-1.5 shadow-md shadow-rose-600/20"
+            >
+              <ShieldAlert className="h-4 w-4" /> Broadcast Emergency
             </Button>
-          </Link>
+            <Link href="/admin/issues">
+              <Button variant="outline">
+                Open queue
+                <ArrowUpRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -144,6 +162,12 @@ export default function AdminDashboardPage() {
             />
           </>
         )}
+      </div>
+
+      {/* AI SLA Velocity & WhatsApp Simulator Grid */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SLARiskRadar />
+        <WhatsAppSimulatorCard />
       </div>
 
       <section>
