@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { Check, ChevronLeft } from "lucide-react";
+import { Check, ChevronLeft, Mic } from "lucide-react";
+import { VoiceAssistantModal } from "@/components/voice-assistant-modal";
 import { DuplicateSheet } from "@/components/issues/duplicate-sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,6 +24,7 @@ export default function ReportPage() {
   const { user, anonymousSessionId, setAnonymous } = useAuthStore();
   const [step, setStep] = useState(1);
   const [stationId, setStationId] = useState("");
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -129,6 +131,35 @@ export default function ReportPage() {
 
   return (
     <div className="mx-auto max-w-xl">
+      <VoiceAssistantModal
+        isOpen={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+      />
+
+      <div className="mb-6 flex items-center justify-between rounded-2xl border border-accent/40 bg-accent/10 p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground shadow-md">
+            <Mic className="h-5 w-5 animate-pulse" />
+          </div>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-accent">
+              AI Voice Assistant
+            </div>
+            <div className="text-xs font-medium text-muted-foreground">
+              Speak or type in Hindi, Marathi, Gujarati, Hinglish, or English
+            </div>
+          </div>
+        </div>
+        <Button
+          onClick={() => setVoiceModalOpen(true)}
+          variant="accent"
+          size="sm"
+          className="shrink-0 font-bold"
+        >
+          Try Voice AI
+        </Button>
+      </div>
+
       <PageHeader
         eyebrow="Report"
         title="Tell us what’s wrong"
