@@ -4,15 +4,19 @@ from httpx import AsyncClient
 API = "/api/v1"
 
 
+import uuid
+
 @pytest.mark.asyncio
 async def test_idempotency_key_prevents_duplicate_processing(
     client: AsyncClient, anonymous_headers: dict, bandra_station_id: str
 ):
-    headers = {**anonymous_headers, "Idempotency-Key": "test-key-12345"}
+    uid = uuid.uuid4()
+    key = f"test-key-{uid}"
+    headers = {**anonymous_headers, "Idempotency-Key": key}
     payload = {
-        "description": "Idempotency test issue description with sufficient length",
+        "description": f"Unique idempotency description {uid} with sufficient length to bypass duplicate filter",
         "station_id": bandra_station_id,
-        "title": "Idempotency Test",
+        "title": f"Idempotency Test {uid}",
     }
 
     # First request

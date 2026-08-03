@@ -596,3 +596,38 @@ async def notify_main_admin(
         data={"notified": notified, "open_issues": open_count or 0, "scope": scope_note},
         meta=Meta(),
     )
+
+
+@router.get("/sla-risk-radar", response_model=Envelope[list[dict]])
+async def get_sla_risk_radar(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    official: Annotated[User, Depends(require_official)],
+    min_risk_score: float = Query(default=0.0, ge=0.0, le=100.0),
+) -> Envelope[list[dict]]:
+    """Predictive SLA Radar endpoint returning open grievances sorted by highest SLA breach risk."""
+    from app.ai.sla_predictor import sla_predictor
+
+    open_statuses = [s.value for s in IssueStatus if s not in TERMINAL_STATUSES]
+    stmt = (
+        select(Issue)
+        .options(*ISSUE_RESPONSE_LOAD)
+        .where(Issue.status.in_(open_statuses))
+    )
+    stmt = apply_issue_location_scope(stmt, official)
+    res = await db.execute(stmt)
+    open_issues = res.scalars().unique().all()
+
+    station_counts: dict[uuid.UUID, int] = {}
+    for issue in open_issues:
+        if issue.station_id:
+            station_counts[issue.station_id] = station_counts.get(issue.station_id, 0) + 1
+
+    risk_predictions = []
+    for issue in open_issues:
+        st_count = station_counts.get(issue.station_id, 0) if issue.station_id else 0
+        risk_data = sla_predictor.predict_issue_sla_risk(issue, station_open_count=st_count)
+        if risk_data["risk_score_pct"] >= min_risk_score:
+            risk_predictions.append(risk_data)
+
+    risk_predictions.sort(key=lambda x: x["risk_score_pct"], reverse=True)
+    return Envelope(data=risk_predictions, meta=Meta())
