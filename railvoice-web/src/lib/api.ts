@@ -13,6 +13,8 @@ import type {
   TimelineEvent,
   User,
   UserAuditRow,
+  VendorScorecardResponse,
+  StationHeatmapResponse,
 } from "./types";
 
 const API_BASE =
@@ -497,6 +499,62 @@ export const api = {
           results: { issue: Issue; relevance_score: number; match_type: string }[];
         }>
       >(`/search?${qs}`);
+    },
+  },
+
+  telemetry: {
+    pnrLookup: (pnr_number: string) =>
+      apiFetch<
+        ApiEnvelope<{
+          pnr_number: string;
+          train_number: string;
+          train_name: string;
+          boarding_date: string;
+          boarding_station: string;
+          destination_station: string;
+          passengers: any[];
+          chart_prepared: boolean;
+          obhs_assigned: boolean;
+        }>
+      >("/telemetry/pnr-lookup", {
+        method: "POST",
+        body: JSON.stringify({ pnr_number }),
+      }),
+    trainStatus: (train_number: string) =>
+      apiFetch<
+        ApiEnvelope<{
+          train_number: string;
+          train_name: string;
+          start_date: string;
+          is_running_live: boolean;
+          current_station: string;
+          upcoming_station: string;
+          delay_minutes: number;
+          latitude: number | null;
+          longitude: number | null;
+        }>
+      >(`/telemetry/train-status/${train_number}`),
+  },
+
+  vendors: {
+    getScorecard: async (): Promise<VendorScorecardResponse> => {
+      return apiFetch("/vendors/scorecard");
+    },
+    approvePenalty: async (id: string): Promise<void> => {
+      return apiFetch(`/vendors/penalty-notes/${id}/approve`, {
+        method: "POST",
+      });
+    },
+    triggerEngine: async (): Promise<{ status: string; penalty_notes_created: number }> => {
+      return apiFetch("/vendors/trigger-engine", {
+        method: "POST",
+      });
+    },
+  },
+
+  analytics: {
+    getStationHeatmap: async (): Promise<StationHeatmapResponse> => {
+      return apiFetch("/station-heatmap");
     },
   },
 };

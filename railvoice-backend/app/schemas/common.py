@@ -144,6 +144,9 @@ class IssueCreateRequest(BaseModel):
     platform_id: uuid.UUID | None = None
     train_number: str | None = Field(None, max_length=10)
     coach_number: str | None = Field(None, max_length=10)
+    pnr_number: str | None = Field(None, max_length=10)
+    berth_number: str | None = Field(None, max_length=10)
+    upcoming_station_code: str | None = Field(None, max_length=10)
     latitude: float | None = None
     longitude: float | None = None
     force_create: bool = False
@@ -155,6 +158,9 @@ class IssueLocationOut(BaseModel):
     platform: dict[str, Any] | None = None
     train_number: str | None = None
     coach_number: str | None = None
+    pnr_number: str | None = None
+    berth_number: str | None = None
+    upcoming_station_code: str | None = None
     latitude: float | None = None
     longitude: float | None = None
 

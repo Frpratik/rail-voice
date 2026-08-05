@@ -6,6 +6,7 @@ from app.models.issue import (
     IssueTimelineEvent,
     SystemConfig,
 )
+from app.models.vendor import VendorContract, VendorPenaltyNote
 from app.models.location import Division, IssueCategory, Platform, Station, Zone
 from app.models.user import (
     AuthAuditEvent,
@@ -20,6 +21,7 @@ from app.models.user import (
 
 from app.models.emergency import EmergencyAlert
 from app.models.gamification import UserReputation
+from app.models.analytics import StationHealthSnapshot
 
 __all__ = [
     "Zone",
@@ -43,4 +45,7 @@ __all__ = [
     "SystemConfig",
     "EmergencyAlert",
     "UserReputation",
+    "VendorContract",
+    "VendorPenaltyNote",
+    "StationHealthSnapshot",
 ]

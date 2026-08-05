@@ -9,6 +9,8 @@ import { ArrowLeft, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { IssueTimeline } from "@/components/issues/issue-timeline";
 import { CSATFeedbackModal } from "@/components/issues/csat-feedback-modal";
+import { PNRTelemetryWidget } from "@/components/issues/pnr-telemetry-widget";
+import { BeforeAfterSlider } from "@/components/issues/before-after-slider";
 import { SupportButton } from "@/components/issues/support-button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ export default function IssueDetailPage() {
   const { user, anonymousSessionId } = useAuthStore();
   const [comment, setComment] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["issue", id],
@@ -93,6 +96,30 @@ export default function IssueDetailPage() {
     }
   };
 
+  const onResolutionPhotoSelected = async (file?: File | null) => {
+    if (!file) return;
+    setVerifying(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const base = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+      const res = await fetch(`${base}/issues/${id}/resolve-with-verification`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      if (!res.ok) throw new Error("Resolution verification failed");
+      const json = await res.json();
+      toast.success(json.data.message || "Resolution photo submitted for AI verification");
+      queryClient.invalidateQueries({ queryKey: ["issue", id] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -126,6 +153,17 @@ export default function IssueDetailPage() {
         </div>
       </header>
 
+      {issue.location?.train_number && (
+        <PNRTelemetryWidget
+          isEditable={false}
+          initialPnr={issue.location.pnr_number}
+          trainNumber={issue.location.train_number}
+          coachNumber={issue.location.coach_number}
+          berthNumber={issue.location.berth_number}
+          upcomingStationCode={issue.location.upcoming_station_code}
+        />
+      )}
+
       <Card elevated className="p-6">
         <SupportButton
           supportCount={issue.support_count}
@@ -143,6 +181,18 @@ export default function IssueDetailPage() {
         />
       </Card>
 
+      {/* AI Visual Verification Before/After Slider */}
+      {issue.resolution_photo_url && (
+        <Card className="p-6">
+          <BeforeAfterSlider
+            beforeUrl={photos[0]?.url || "/placeholder.jpg"}
+            afterUrl={issue.resolution_photo_url}
+            verificationScore={issue.resolution_verification_score}
+            resolutionStatus={issue.resolution_status}
+          />
+        </Card>
+      )}
+
       <Card className="p-6">
         <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           Description
@@ -157,18 +207,30 @@ export default function IssueDetailPage() {
           <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Photos
           </h2>
-          {(user || anonymousSessionId) && (
-            <label className="cursor-pointer text-sm font-medium text-accent hover:underline">
-              {uploading ? "Uploading…" : "Add photo"}
+          <div className="flex items-center gap-3">
+            <label className="cursor-pointer text-sm font-medium text-indigo-500 hover:underline">
+              {verifying ? "AI Verifying…" : "Submit Resolution Photo (AI)"}
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
-                disabled={uploading}
-                onChange={(e) => onPhotoSelected(e.target.files?.[0])}
+                disabled={verifying}
+                onChange={(e) => onResolutionPhotoSelected(e.target.files?.[0])}
               />
             </label>
-          )}
+            {(user || anonymousSessionId) && (
+              <label className="cursor-pointer text-sm font-medium text-accent hover:underline">
+                {uploading ? "Uploading…" : "Add complaint photo"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => onPhotoSelected(e.target.files?.[0])}
+                />
+              </label>
+            )}
+          </div>
         </div>
         {photos.length === 0 ? (
           <p className="text-sm text-muted-foreground">No photos yet.</p>

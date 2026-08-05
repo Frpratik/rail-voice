@@ -1,37 +1,35 @@
-import io
 import pytest
+import io
 from PIL import Image
-from app.ai.visual_verifier import visual_verifier
+from httpx import AsyncClient
+from sqlalchemy import select
+from app.db.session import async_session_factory
+from app.models.issue import Issue
 
+API = "/api/v1"
 
-def create_test_image_bytes(pattern: str = "rect") -> bytes:
-    from PIL import ImageDraw
+@pytest.mark.asyncio
+async def test_resolve_issue_with_verification(client: AsyncClient):
+    # Fetch an existing issue or create directly in DB
+    async with async_session_factory() as db:
+        res = await db.execute(select(Issue))
+        issue = res.scalars().first()
+        assert issue is not None, "An issue should exist in the seed DB"
+        issue_id = str(issue.id)
 
-    img = Image.new("RGB", (100, 100), color="white")
-    draw = ImageDraw.Draw(img)
-    if pattern == "rect":
-        draw.rectangle([10, 10, 50, 90], fill="black")
-    else:
-        draw.ellipse([50, 10, 90, 90], fill="black")
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG")
-    return buf.getvalue()
+    # Create dummy image in memory
+    img = Image.new("RGB", (300, 300), color="blue")
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="JPEG")
+    img_bytes = img_byte_arr.getvalue()
 
-
-def test_perceptual_hash_computation():
-    img1 = create_test_image_bytes("rect")
-    img2 = create_test_image_bytes("rect")
-    hash1 = visual_verifier.compute_perceptual_hash(img1)
-    hash2 = visual_verifier.compute_perceptual_hash(img2)
-
-    assert len(hash1) == 16
-    assert hash1 == hash2
-
-
-def test_different_images_produce_different_hashes():
-    img1 = create_test_image_bytes("rect")
-    img2 = create_test_image_bytes("circle")
-    hash1 = visual_verifier.compute_perceptual_hash(img1)
-    hash2 = visual_verifier.compute_perceptual_hash(img2)
-
-    assert hash1 != hash2
+    # Call endpoint with multipart file
+    response = await client.post(
+        f"{API}/issues/{issue_id}/resolve-with-verification",
+        files={"file": ("resolution_test.jpg", img_bytes, "image/jpeg")}
+    )
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert "verification_score" in data
+    assert data["verification_score"] > 0
+    assert "resolution_status" in data

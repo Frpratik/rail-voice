@@ -1,10 +1,12 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+from app.services.visual_resolver import VisualResolverService
 
 from app.ai.duplicate import effective_duplicate_threshold
 from app.core.deps import get_db, get_reporter_user
@@ -112,6 +114,9 @@ async def create_issue(
             platform_id=body.platform_id,
             train_number=body.train_number,
             coach_number=body.coach_number,
+            pnr_number=body.pnr_number,
+            berth_number=body.berth_number,
+            upcoming_station_code=body.upcoming_station_code,
             latitude=body.latitude,
             longitude=body.longitude,
             force_create=body.force_create,
@@ -220,3 +225,18 @@ async def support_issue(
         ),
         meta=Meta(),
     )
+
+
+@router.post("/issues/{issue_id}/resolve-with-verification")
+async def resolve_issue_with_verification(
+    issue_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    file: UploadFile = File(...),
+):
+    contents = await file.read()
+    service = VisualResolverService(db)
+    result = await service.verify_and_resolve_issue(issue_id, contents, file.filename or "resolution.jpg")
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return Envelope(data=result, meta=Meta())
+

@@ -17,6 +17,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { saveOfflineReport } from "@/lib/offline-queue";
 import type { SimilarIssue } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { PNRTelemetryWidget } from "@/components/issues/pnr-telemetry-widget";
 
 const STEPS = ["Location", "Details", "Review"];
 
@@ -35,6 +36,15 @@ export default function ReportPage() {
   const [divergenceReason, setDivergenceReason] = useState("");
   const [checking, setChecking] = useState(false);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  
+  // Telemetry state
+  const [pnrData, setPnrData] = useState<{
+    pnr_number: string;
+    train_number: string;
+    coach_number: string;
+    berth_number: string;
+    upcoming_station_code: string;
+  } | null>(null);
 
   const { data: stationsData } = useQuery({
     queryKey: ["stations"],
@@ -113,6 +123,7 @@ export default function ReportPage() {
         title: title || undefined,
         force_create: force,
         divergence_reason: force ? divergenceReason : undefined,
+        ...(pnrData || {}),
       });
       const issueId = res.data.issue.id;
       for (const file of photoFiles.slice(0, 5)) {
@@ -230,32 +241,49 @@ export default function ReportPage() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -12 }}
           >
-            <Card elevated className="space-y-5 p-6">
-              <div>
-                <Label htmlFor="station">Station</Label>
-                <Select
-                  id="station"
-                  value={stationId}
-                  onChange={(e) => setStationId(e.target.value)}
-                >
-                  <option value="">Select a station</option>
-                  {stations.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </Select>
+            <div className="space-y-6">
+              <PNRTelemetryWidget
+                isEditable
+                onPnrFound={(data) => {
+                  setPnrData(data);
+                  const st = stations.find((s) => s.code === data.upcoming_station_code);
+                  if (st) setStationId(st.id);
+                }}
+              />
+
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-muted-foreground/20"></div>
+                <span className="shrink-0 px-4 text-xs font-medium text-muted-foreground">OR</span>
+                <div className="flex-grow border-t border-muted-foreground/20"></div>
               </div>
-              <Button
-                variant="accent"
-                className="w-full"
-                size="lg"
-                onClick={() => setStep(2)}
-                disabled={!stationId}
-              >
-                Continue
-              </Button>
-            </Card>
+
+              <Card elevated className="space-y-5 p-6">
+                <div>
+                  <Label htmlFor="station">Station</Label>
+                  <Select
+                    id="station"
+                    value={stationId}
+                    onChange={(e) => setStationId(e.target.value)}
+                  >
+                    <option value="">Select a station</option>
+                    {stations.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <Button
+                  variant="accent"
+                  className="w-full"
+                  size="lg"
+                  onClick={() => setStep(2)}
+                  disabled={!stationId}
+                >
+                  Continue
+                </Button>
+              </Card>
+            </div>
           </motion.div>
         )}
 

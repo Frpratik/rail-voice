@@ -154,6 +154,9 @@ def issue_to_out(
         station=station_payload,
         train_number=issue.train_number,
         coach_number=issue.coach_number,
+        pnr_number=issue.pnr_number,
+        berth_number=issue.berth_number,
+        upcoming_station_code=issue.upcoming_station_code,
         latitude=float(issue.latitude) if issue.latitude is not None else None,
         longitude=float(issue.longitude) if issue.longitude is not None else None,
     )

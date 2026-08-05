@@ -9,6 +9,8 @@ import {
   LogOut,
   Search,
   Users,
+  Briefcase,
+  Map,
 } from "lucide-react";
 import { LogoMark } from "@/components/layout/app-shell";
 import { useAuthStore } from "@/lib/auth-store";
@@ -20,7 +22,9 @@ const links = [
   { href: "/admin/issues", icon: Inbox, label: "Queue" },
   { href: "/admin/users", icon: Users, label: "Users" },
   { href: "/admin/analytics", icon: BarChart3, label: "Analytics" },
+  { href: "/admin/analytics/heatmap", icon: Map, label: "Corridor Heatmap" },
   { href: "/admin/reports", icon: FileText, label: "Reports" },
+  { href: "/admin/vendors", icon: Briefcase, label: "Vendors" },
 ];
 
 export function AdminSidebar({ pathname }: { pathname: string }) {
@@ -62,7 +66,10 @@ export function AdminSidebar({ pathname }: { pathname: string }) {
 
       <nav className="flex flex-1 flex-col gap-1">
         {links.map(({ href, icon: Icon, label: linkLabel }) => {
-          const active = pathname.startsWith(href);
+          const active =
+            href === "/admin/analytics"
+              ? pathname === "/admin/analytics"
+              : pathname.startsWith(href);
           return (
             <Link
               key={href}

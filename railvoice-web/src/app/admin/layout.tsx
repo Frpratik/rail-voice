@@ -29,13 +29,15 @@ export default function AdminLayout({
               { href: "/admin/issues", label: "Queue" },
               { href: "/admin/users", label: "Users" },
               { href: "/admin/analytics", label: "Analytics" },
+              { href: "/admin/analytics/heatmap", label: "Heatmap" },
               { href: "/admin/reports", label: "Reports" },
+              { href: "/admin/vendors", label: "Vendors" },
             ].map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
-                  pathname.startsWith(l.href)
+                  (l.href === "/admin/analytics" ? pathname === "/admin/analytics" : pathname.startsWith(l.href))
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground"
                 }`}
