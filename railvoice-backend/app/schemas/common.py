@@ -248,6 +248,9 @@ class IssueOut(BaseModel):
     creator: dict[str, Any] | None = None
     assignee: dict[str, Any] | None = None
     photos: list[PhotoOut] = []
+    resolution_photo_url: str | None = None
+    resolution_verification_score: float | None = None
+    resolution_status: str | None = None
     created_at: datetime
     updated_at: datetime
     resolved_at: datetime | None = None
