@@ -131,10 +131,10 @@ class DispatchOptimizerService:
 
     async def auto_dispatch_all(self, db: AsyncSession) -> AutoDispatchResultOut:
         recommendations = await self.generate_recommendations(db)
-        assignments: list[DispatchAssignment] = []
+        assignments_out: list[DispatchAssignmentOut] = []
 
         for rec in recommendations:
-            # Create dispatch assignment
+            now_time = datetime.now(timezone.utc)
             assignment = DispatchAssignment(
                 id=uuid.uuid4(),
                 issue_id=rec.issue_id,
@@ -142,7 +142,7 @@ class DispatchOptimizerService:
                 dispatch_status="dispatched",
                 matched_skill=rec.skill_match,
                 confidence_score=rec.confidence_score,
-                dispatched_at=datetime.now(timezone.utc),
+                dispatched_at=now_time,
             )
             db.add(assignment)
 
@@ -152,25 +152,25 @@ class DispatchOptimizerService:
             if staff:
                 staff.status = "on_task"
 
-            assignments.append(assignment)
+            assignments_out.append(
+                DispatchAssignmentOut(
+                    id=assignment.id,
+                    issue_id=assignment.issue_id,
+                    staff_id=assignment.staff_id,
+                    dispatch_status=assignment.dispatch_status,
+                    matched_skill=assignment.matched_skill,
+                    confidence_score=assignment.confidence_score,
+                    dispatched_at=now_time,
+                    completed_at=None,
+                    staff=rec.recommended_staff,
+                )
+            )
 
         await db.commit()
-        
-        # Reload assignments with staff relationship
-        reloaded_assignments: list[DispatchAssignmentOut] = []
-        for a in assignments:
-            res = await db.execute(
-                select(DispatchAssignment)
-                .options(selectinload(DispatchAssignment.staff))
-                .where(DispatchAssignment.id == a.id)
-            )
-            obj = res.scalars().first()
-            if obj:
-                reloaded_assignments.append(DispatchAssignmentOut.model_validate(obj))
 
         return AutoDispatchResultOut(
-            dispatched_count=len(reloaded_assignments),
-            assignments=reloaded_assignments,
+            dispatched_count=len(assignments_out),
+            assignments=assignments_out,
         )
 
 dispatch_optimizer_service = DispatchOptimizerService()

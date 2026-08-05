@@ -17,7 +17,7 @@ class VisualResolverService:
     def _compute_image_hash(self, img: Image.Image) -> str:
         """Simple average hashing for perceptual image comparison."""
         img = img.convert("L").resize((8, 8), Image.Resampling.LANCZOS)
-        pixels = list(img.getdata())
+        pixels = list(img.get_flattened_data()) if hasattr(img, "get_flattened_data") else list(img.getdata())
         avg = sum(pixels) / len(pixels)
         bits = "".join(["1" if p > avg else "0" for p in pixels])
         return bits
