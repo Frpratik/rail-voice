@@ -28,20 +28,20 @@ export default function VendorsPage() {
       const res = await api.vendors.triggerEngine();
       toast.success(`Penalty Engine triggered successfully. Created ${res.penalty_notes_created} notes.`);
       queryClient.invalidateQueries({ queryKey: ["vendors_scorecard"] });
-    } catch (e: any) {
-      toast.error(e.message || "Failed to trigger engine");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to trigger engine");
     } finally {
       setTriggering(false);
     }
   };
 
-  const approveMutation = useMutation({
+  const _approveMutation = useMutation({
     mutationFn: (id: string) => api.vendors.approvePenalty(id),
     onSuccess: () => {
       toast.success("Penalty Note Approved");
       queryClient.invalidateQueries({ queryKey: ["vendors_scorecard"] });
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       toast.error(e.message || "Failed to approve penalty note");
     }
   });

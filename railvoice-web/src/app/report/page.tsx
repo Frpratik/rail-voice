@@ -78,13 +78,15 @@ export default function ReportPage() {
     }
     if (typeof window !== "undefined" && !navigator.onLine) {
       const offlineId = crypto.randomUUID();
+      // eslint-disable-next-line react-hooks/purity
+      const now = Date.now();
       await saveOfflineReport({
         id: offlineId,
         title: title || "Offline Grievance Report",
         description,
         station_id: stationId,
         photoBlob: photoFiles[0] || undefined,
-        createdAt: Date.now(),
+        createdAt: now,
         status: "queued",
       });
       toast.success("⚡ Offline Mode: Report queued in IndexedDB. Will auto-sync when cellular signal resumes!");

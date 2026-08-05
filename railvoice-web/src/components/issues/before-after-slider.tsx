@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BeforeAfterSliderProps {
@@ -15,7 +15,7 @@ export function BeforeAfterSlider({
   beforeUrl,
   afterUrl,
   verificationScore,
-  resolutionStatus,
+  resolutionStatus: _resolutionStatus,
 }: BeforeAfterSliderProps) {
   const [sliderPos, setSliderPos] = useState(50);
 

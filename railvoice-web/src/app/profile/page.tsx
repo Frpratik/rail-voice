@@ -16,11 +16,14 @@ import { ReputationCard } from "@/components/profile/reputation-card";
 
 export default function ProfilePage() {
   const { user, setAuth, logout, accessToken } = useAuthStore();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() => user?.display_name || "");
   const [email, setEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [profile, setProfile] = useState<{
+    id: string;
+    display_name: string;
+    email?: string | null;
     avatar_url?: string | null;
     mobile_last4?: string | null;
     created_at?: string | null;
@@ -32,7 +35,6 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    setName(user.display_name);
     void api.me
       .get()
       .then((res) => {
@@ -124,7 +126,7 @@ export default function ProfilePage() {
     if (!file) return;
     try {
       const res = await api.me.uploadAvatar(file);
-      setProfile((p) => ({ ...(p || {}), avatar_url: res.data.avatar_url }));
+      setProfile((p) => (p ? { ...p, avatar_url: res.data.avatar_url } : null));
       toast.success("Avatar uploaded");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");

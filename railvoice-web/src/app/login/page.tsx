@@ -94,7 +94,7 @@ export default function LoginPage() {
 
     const existing = document.getElementById("google-gsi");
     if (existing) {
-      setGoogleReady(true);
+      setTimeout(() => setGoogleReady(true), 0);
       return;
     }
 

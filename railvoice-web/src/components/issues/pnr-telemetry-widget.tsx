@@ -7,7 +7,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Train, MapPin, Ticket, ShieldCheck, Clock, CheckCircle2, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface PNRTelemetryWidgetProps {
@@ -60,8 +59,8 @@ export function PNRTelemetryWidget({
       setActiveTrain(data.train_number);
       
       const passenger = data.passengers?.[0];
-      const coach = passenger?.coach || "B4"; // Fallback to B4 if mock data doesn't have it
-      const berth = passenger?.berth || "22";
+      const coach = String(passenger?.coach || "B4"); // Fallback to B4 if mock data doesn't have it
+      const berth = String(passenger?.berth || "22");
       const upcoming = "ST"; // Mock upcoming station
       
       toast.success(`PNR Found: Train ${data.train_number} - ${data.train_name}`);

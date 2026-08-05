@@ -13,11 +13,15 @@ import {
   User,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { EmergencyBanner } from "@/components/layout/emergency-banner";
+
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 function LogoMark({ className }: { className?: string }) {
   return (
@@ -42,10 +46,8 @@ function LogoMark({ className }: { className?: string }) {
 export function AppHeader() {
   const { resolvedTheme, setTheme } = useTheme();
   const pathname = usePathname();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
   const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => setMounted(true), []);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();

@@ -1,14 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { MessageSquare, Send, CheckCircle2, Phone, Sparkles } from "lucide-react";
+import { MessageSquare, Send, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+
+interface WhatsAppSimResult {
+  reply?: string;
+  issue_id?: string;
+  success?: boolean;
+}
 
 export function WhatsAppSimulatorCard() {
   const [mobile, setMobile] = React.useState("+919876543210");
   const [message, setMessage] = React.useState("Bandra station pe platform 1 water leakage");
   const [loading, setLoading] = React.useState(false);
-  const [result, setResult] = React.useState<any>(null);
+  const [result, setResult] = React.useState<WhatsAppSimResult | null>(null);
 
   const handleSimulate = async (e: React.FormEvent) => {
     e.preventDefault();

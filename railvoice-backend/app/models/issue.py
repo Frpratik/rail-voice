@@ -56,6 +56,7 @@ class Issue(Base):
     berth_number: Mapped[str | None] = mapped_column(String(10))
     upcoming_station_code: Mapped[str | None] = mapped_column(String(10))
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
+    longitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
     merged_into_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"))
     resolution_photo_url: Mapped[str | None] = mapped_column(String(512))
     resolution_verification_score: Mapped[float | None] = mapped_column(Numeric(5, 2))

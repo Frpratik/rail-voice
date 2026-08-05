@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ShieldCheck, ShieldAlert, Image as ImageIcon, Sparkles } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Sparkles } from "lucide-react";
 
 export function VisualVerificationBadge({
   perceptualHash,

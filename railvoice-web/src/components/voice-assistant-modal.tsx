@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Mic, Languages, Sparkles, Send, X, Volume2 } from "lucide-react";
+import { Mic, Sparkles, Send, X } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 interface VoiceParseResult {
   detected_language: string;
@@ -24,7 +23,7 @@ export function VoiceAssistantModal({
 }) {
   const router = useRouter();
   const [transcript, setTranscript] = React.useState("");
-  const [parsing, setParsing] = React.useState(false);
+  const [_parsing, setParsing] = React.useState(false);
   const [parsedData, setParsedData] = React.useState<VoiceParseResult | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 

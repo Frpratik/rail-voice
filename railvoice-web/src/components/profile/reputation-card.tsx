@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Award, Trophy, Star, ShieldCheck, Flame } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Trophy, Star, ShieldCheck } from "lucide-react";
 
 interface ReputationData {
   reputation_points: number;

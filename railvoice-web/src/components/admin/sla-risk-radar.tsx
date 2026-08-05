@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Radar, AlertCircle, Clock, TrendingUp, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { Radar, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SLARiskItem {

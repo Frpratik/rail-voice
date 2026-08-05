@@ -22,7 +22,7 @@ function openDB(): Promise<IDBDatabase> {
     }
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
@@ -55,7 +55,7 @@ export async function getOfflineReports(): Promise<OfflineReportItem[]> {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
-  } catch (err) {
+  } catch {
     return [];
   }
 }
@@ -126,9 +126,9 @@ export async function drainOfflineQueue(
         await saveOfflineReport(item);
         failed++;
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       item.status = 'failed';
-      item.errorMessage = err.message || 'Network sync failed';
+      item.errorMessage = err instanceof Error ? err.message : 'Network sync failed';
       await saveOfflineReport(item);
       failed++;
     }

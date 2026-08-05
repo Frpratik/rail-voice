@@ -1,22 +1,22 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { WifiOff, RefreshCw, CheckCircle, AlertTriangle, Layers, Trash2, ArrowUpRight } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { WifiOff, RefreshCw, CheckCircle, Layers, Trash2 } from 'lucide-react';
 import { getOfflineReports, drainOfflineQueue, removeOfflineReport, OfflineReportItem } from '@/lib/offline-queue';
 
 export function OfflineQueueBanner() {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(() => typeof window !== 'undefined' ? navigator.onLine : true);
   const [queue, setQueue] = useState<OfflineReportItem[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
-  const refreshQueue = async () => {
+  const refreshQueue = useCallback(async () => {
     const items = await getOfflineReports();
     setQueue(items);
-  };
+  }, []);
 
-  const handleSync = async () => {
+  const handleSync = useCallback(async () => {
     if (isSyncing || queue.length === 0) return;
     setIsSyncing(true);
     setSyncStatus('Syncing offline reports...');
@@ -28,18 +28,19 @@ export function OfflineQueueBanner() {
         setSyncStatus(`Failed to upload ${result.failed} report(s).`);
       }
       await refreshQueue();
-    } catch (err: any) {
-      setSyncStatus(`Sync error: ${err.message}`);
+    } catch (err: unknown) {
+      setSyncStatus(`Sync error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [isSyncing, queue.length, refreshQueue]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setIsOnline(navigator.onLine);
-    refreshQueue();
+    setTimeout(() => {
+      void refreshQueue();
+    }, 0);
 
     const handleOnline = () => {
       setIsOnline(true);
@@ -71,7 +72,7 @@ export function OfflineQueueBanner() {
         navigator.serviceWorker.removeEventListener('message', handleSWMessage);
       }
     };
-  }, []);
+  }, [handleSync, refreshQueue]);
 
   if (isOnline && queue.length === 0 && !syncStatus) {
     return null;

@@ -512,7 +512,7 @@ export const api = {
           boarding_date: string;
           boarding_station: string;
           destination_station: string;
-          passengers: any[];
+          passengers: Array<Record<string, unknown>>;
           chart_prepared: boolean;
           obhs_assigned: boolean;
         }>

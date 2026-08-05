@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Award, ShieldCheck, Trophy, Flame, CheckCircle2 } from "lucide-react";
+import { Trophy, Flame, CheckCircle2 } from "lucide-react";
 
 interface StationLeaderboardEntry {
   rank: number;

@@ -5,11 +5,11 @@ import { Star, AlertCircle, CheckCircle2, RotateCcw, MessageSquare, Send } from 
 
 interface CSATFeedbackModalProps {
   issueId: string;
-  currentStatus: string;
+  currentStatus?: string;
   onFeedbackSubmitted?: (newStatus: string) => void;
 }
 
-export function CSATFeedbackModal({ issueId, currentStatus, onFeedbackSubmitted }: CSATFeedbackModalProps) {
+export function CSATFeedbackModal({ issueId, onFeedbackSubmitted }: CSATFeedbackModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [rating, setRating] = useState<number>(5);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
@@ -17,7 +17,7 @@ export function CSATFeedbackModal({ issueId, currentStatus, onFeedbackSubmitted 
   const [isReopened, setIsReopened] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [submittedData, setSubmittedData] = useState<any | null>(null);
+  const [submittedData, setSubmittedData] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -53,8 +53,8 @@ export function CSATFeedbackModal({ issueId, currentStatus, onFeedbackSubmitted 
       if (onFeedbackSubmitted) {
         onFeedbackSubmitted(json.data.new_status);
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while submitting feedback');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred while submitting feedback');
     } finally {
       setSubmitting(false);
     }
