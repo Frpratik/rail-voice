@@ -22,6 +22,7 @@ from app.models.user import (
 from app.models.emergency import EmergencyAlert
 from app.models.gamification import UserReputation
 from app.models.analytics import StationHealthSnapshot
+from app.models.dispatch import WorkforceStaff, DispatchAssignment
 
 __all__ = [
     "Zone",

@@ -15,6 +15,9 @@ import type {
   UserAuditRow,
   VendorScorecardResponse,
   StationHeatmapResponse,
+  RosterSummary,
+  DispatchRecommendation,
+  AutoDispatchResult,
 } from "./types";
 
 const API_BASE =
@@ -555,6 +558,20 @@ export const api = {
   analytics: {
     getStationHeatmap: async (): Promise<StationHeatmapResponse> => {
       return apiFetch("/station-heatmap");
+    },
+  },
+
+  dispatch: {
+    getRoster: async (): Promise<RosterSummary> => {
+      return apiFetch("/admin/dispatch/roster");
+    },
+    getRecommendations: async (): Promise<DispatchRecommendation[]> => {
+      return apiFetch("/admin/dispatch/recommendations");
+    },
+    autoAssign: async (): Promise<AutoDispatchResult> => {
+      return apiFetch("/admin/dispatch/auto-assign", {
+        method: "POST",
+      });
     },
   },
 };

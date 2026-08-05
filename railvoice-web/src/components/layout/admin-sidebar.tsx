@@ -11,6 +11,7 @@ import {
   Users,
   Briefcase,
   Map,
+  Zap,
 } from "lucide-react";
 import { LogoMark } from "@/components/layout/app-shell";
 import { useAuthStore } from "@/lib/auth-store";
@@ -21,6 +22,7 @@ const links = [
   { href: "/admin/dashboard", icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/issues", icon: Inbox, label: "Queue" },
   { href: "/admin/users", icon: Users, label: "Users" },
+  { href: "/admin/dispatch", icon: Zap, label: "AI Dispatch" },
   { href: "/admin/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/admin/analytics/heatmap", icon: Map, label: "Corridor Heatmap" },
   { href: "/admin/reports", icon: FileText, label: "Reports" },

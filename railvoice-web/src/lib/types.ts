@@ -255,3 +255,60 @@ export interface StationHeatmapResponse {
   type: 'FeatureCollection';
   features: StationGeoFeature[];
 }
+
+export interface StationGeoFeatureCollection {
+  type: string;
+  features: StationGeoFeature[];
+}
+
+export interface WorkforceStaff {
+  id: string;
+  full_name: string;
+  skill_category: string;
+  contact_number?: string | null;
+  assigned_station_id?: string | null;
+  status: "available" | "on_task" | "off_duty" | string;
+  shift_start?: string | null;
+  shift_end?: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DispatchRecommendation {
+  issue_id: string;
+  issue_number: string;
+  title?: string | null;
+  station_name: string;
+  category_name: string;
+  priority_score: number;
+  recommended_staff: WorkforceStaff;
+  skill_match: string;
+  confidence_score: number;
+  reason: string;
+}
+
+export interface DispatchAssignment {
+  id: string;
+  issue_id: string;
+  staff_id: string;
+  dispatch_status: string;
+  matched_skill?: string | null;
+  confidence_score?: number | null;
+  dispatched_at: string;
+  completed_at?: string | null;
+  staff?: WorkforceStaff | null;
+}
+
+export interface RosterSummary {
+  total_staff: number;
+  available_count: number;
+  on_task_count: number;
+  off_duty_count: number;
+  category_counts: Record<string, number>;
+  staff_list: WorkforceStaff[];
+}
+
+export interface AutoDispatchResult {
+  dispatched_count: number;
+  assignments: DispatchAssignment[];
+}
