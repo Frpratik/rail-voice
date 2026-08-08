@@ -25,20 +25,25 @@ export default function HomePage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQ, setSearchQ] = useState("");
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["issues", sort],
     queryFn: () => api.issues.list({ sort, limit: 20 }),
     enabled: searchQ.length < 2,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   const {
     data: searchData,
     isLoading: searchLoading,
     error: searchError,
+    refetch: refetchSearch,
   } = useQuery({
     queryKey: ["search", searchQ],
     queryFn: () => api.search.text(searchQ, { limit: 20 }),
     enabled: searchQ.length >= 2,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   const issues =
@@ -184,12 +189,28 @@ export default function HomePage() {
         </div>
 
         {feedError && (
-          <div className="mb-5 rounded-2xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive">
-            Couldn’t load issues. Is the API running at{" "}
-            <span className="font-mono text-xs">
-              {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
-            </span>
-            ?
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive">
+            <div>
+              Couldn’t load issues from{" "}
+              <span className="font-mono text-xs font-semibold">
+                {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}
+              </span>
+              .
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-destructive/30 text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                if (searchQ.length >= 2) {
+                  void refetchSearch();
+                } else {
+                  void refetch();
+                }
+              }}
+            >
+              Retry Connection
+            </Button>
           </div>
         )}
 
