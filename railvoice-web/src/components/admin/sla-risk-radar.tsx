@@ -10,14 +10,16 @@ interface SLARiskItem {
   title: string;
   station_code: string;
   station_name: string;
-  category_name: string;
-  created_at: string;
-  target_sla_hours: number;
-  elapsed_hours: number;
-  remaining_hours: number;
+  category_name?: string;
+  category_code?: string;
+  created_at?: string;
+  target_sla_hours?: number;
+  elapsed_hours?: number;
+  remaining_hours?: number;
+  hours_remaining?: number;
   risk_score_pct: number;
   risk_level: "critical" | "high" | "medium" | "low";
-  risk_factors: string[];
+  risk_factors?: string[];
 }
 
 export function SLARiskRadar() {
@@ -49,6 +51,7 @@ export function SLARiskRadar() {
             target_sla_hours: 4,
             elapsed_hours: 3.2,
             remaining_hours: 0.8,
+            hours_remaining: 0.8,
             risk_score_pct: 88,
             risk_level: "critical",
             risk_factors: ["Target SLA 80% elapsed", "High station workload"],
@@ -64,6 +67,7 @@ export function SLARiskRadar() {
             target_sla_hours: 12,
             elapsed_hours: 8.5,
             remaining_hours: 3.5,
+            hours_remaining: 3.5,
             risk_score_pct: 71,
             risk_level: "high",
             risk_factors: ["Target SLA 70% elapsed"],
@@ -110,6 +114,9 @@ export function SLARiskRadar() {
           {items.map((item) => {
             const isCritical = item.risk_level === "critical";
             const isHigh = item.risk_level === "high";
+            const remainingHours = Number(item.remaining_hours ?? item.hours_remaining ?? 0) || 0;
+            const riskPct = Number(item.risk_score_pct ?? 0) || 0;
+            const riskFactors = item.risk_factors || [];
 
             return (
               <div
@@ -133,7 +140,7 @@ export function SLARiskRadar() {
                         {item.station_name} ({item.station_code})
                       </span>
                       <span className="text-[10px] font-semibold text-muted-foreground">
-                        {item.category_name}
+                        {item.category_name || item.category_code || "General"}
                       </span>
                     </div>
                     <h4 className="text-xs font-extrabold text-foreground mt-1">
@@ -148,10 +155,10 @@ export function SLARiskRadar() {
                         isCritical ? "text-rose-500" : isHigh ? "text-amber-500" : "text-emerald-500"
                       )}
                     >
-                      {item.risk_score_pct}% Risk
+                      {riskPct}% Risk
                     </div>
                     <div className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 justify-end mt-0.5">
-                      <Clock className="h-3 w-3" /> {item.remaining_hours.toFixed(1)}h remaining
+                      <Clock className="h-3 w-3" /> {(remainingHours ?? 0).toFixed(1)}h remaining
                     </div>
                   </div>
                 </div>
@@ -163,21 +170,23 @@ export function SLARiskRadar() {
                       "h-full rounded-full transition-all duration-500",
                       isCritical ? "bg-rose-500" : isHigh ? "bg-amber-500" : "bg-emerald-500"
                     )}
-                    style={{ width: `${Math.min(item.risk_score_pct, 100)}%` }}
+                    style={{ width: `${Math.min(riskPct, 100)}%` }}
                   />
                 </div>
 
                 {/* Risk Factors */}
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {item.risk_factors.map((factor, i) => (
-                    <span
-                      key={i}
-                      className="rounded-lg bg-background/80 border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
-                    >
-                      ⚠️ {factor}
-                    </span>
-                  ))}
-                </div>
+                {riskFactors.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {riskFactors.map((factor, i) => (
+                      <span
+                        key={i}
+                        className="rounded-lg bg-background/80 border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                      >
+                        ⚠️ {factor}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

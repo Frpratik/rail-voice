@@ -43,7 +43,7 @@ export function BeforeAfterSlider({
               <AlertTriangle className="h-4 w-4" />
             )}
             <span>
-              {isVerified ? "AI Verified" : "Under Review"} ({verificationScore.toFixed(1)}% Confidence)
+              {isVerified ? "AI Verified" : "Under Review"} ({Number(verificationScore || 0).toFixed(1)}% Confidence)
             </span>
           </div>
         )}

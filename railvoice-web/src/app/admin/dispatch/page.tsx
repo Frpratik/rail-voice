@@ -223,7 +223,7 @@ export default function AdminDispatchPage() {
                           </Badge>
                           <Badge variant="outline" className="text-xs border-orange-500/30 text-orange-500 font-mono">
                             <TrendingUp className="h-3 w-3 mr-1" />
-                            Priority {rec.priority_score.toFixed(0)}
+                            Priority {(rec.priority_score ?? 0).toFixed(0)}
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">{rec.reason}</p>

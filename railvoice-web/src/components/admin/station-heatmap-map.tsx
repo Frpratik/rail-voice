@@ -72,7 +72,7 @@ export default function StationHeatmapMap({ features }: MapProps) {
                     <div className="flex justify-between">
                       <span className="text-slate-600">Health Index:</span>
                       <span className="font-bold font-mono" style={{ color: color }}>
-                        {health_score.toFixed(1)} / 100
+                        {Number(health_score || 0).toFixed(1)} / 100
                       </span>
                     </div>
                     <div className="flex justify-between">
