@@ -27,7 +27,7 @@ export function SLARiskRadar() {
   React.useEffect(() => {
     async function fetchRadar() {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("access_token");
         const res = await fetch("/api/v1/admin/sla-risk-radar", {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
         });

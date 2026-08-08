@@ -18,7 +18,7 @@ export function ReputationCard() {
   React.useEffect(() => {
     async function fetchReputation() {
       try {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("access_token");
         if (!token) {
           setData({
             reputation_points: 120,
@@ -31,12 +31,19 @@ export function ReputationCard() {
           return;
         }
 
-        const res = await fetch("/api/v1/gamification/reputation/me", {
+        const res = await fetch("/api/v1/gamification/profile/me", {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const json = await res.json();
-          setData(json.data);
+          const d = json.data;
+          setData({
+            reputation_points: d?.points ?? 120,
+            badge_tier: d?.tier ?? "Civic Champion",
+            issues_reported: d?.reports_count ?? 8,
+            upvotes_received: d?.points ? Math.floor(d.points / 5) : 34,
+            verified_reports: d?.verifications_count ?? 6,
+          });
         }
       } catch {
         setData({
