@@ -15,7 +15,6 @@ export function BeforeAfterSlider({
   beforeUrl,
   afterUrl,
   verificationScore,
-  resolutionStatus: _resolutionStatus,
 }: BeforeAfterSliderProps) {
   const [sliderPos, setSliderPos] = useState(50);
 

@@ -72,8 +72,8 @@ export default function AdminDispatchPage() {
 
   const recList: DispatchRecommendation[] = Array.isArray(recommendations)
     ? recommendations
-    : (recommendations && typeof recommendations === "object" && "data" in recommendations && Array.isArray((recommendations as any).data))
-    ? (recommendations as any).data
+    : (recommendations && typeof recommendations === "object" && "data" in recommendations && Array.isArray((recommendations as { data?: DispatchRecommendation[] }).data))
+    ? ((recommendations as { data: DispatchRecommendation[] }).data)
     : [];
 
   return (

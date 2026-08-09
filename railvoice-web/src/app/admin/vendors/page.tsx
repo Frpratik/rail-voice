@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Briefcase, AlertTriangle, CheckCircle, FileText, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,17 +34,6 @@ export default function VendorsPage() {
       setTriggering(false);
     }
   };
-
-  const _approveMutation = useMutation({
-    mutationFn: (id: string) => api.vendors.approvePenalty(id),
-    onSuccess: () => {
-      toast.success("Penalty Note Approved");
-      queryClient.invalidateQueries({ queryKey: ["vendors_scorecard"] });
-    },
-    onError: (e: Error) => {
-      toast.error(e.message || "Failed to approve penalty note");
-    }
-  });
 
   return (
     <main className="flex-1 overflow-y-auto p-4 lg:p-8">

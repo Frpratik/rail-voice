@@ -23,7 +23,7 @@ export function VoiceAssistantModal({
 }) {
   const router = useRouter();
   const [transcript, setTranscript] = React.useState("");
-  const [_parsing, setParsing] = React.useState(false);
+  const [parsing, setParsing] = React.useState(false);
   const [parsedData, setParsedData] = React.useState<VoiceParseResult | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -142,6 +142,14 @@ export function VoiceAssistantModal({
             className="w-full rounded-2xl border border-input bg-background p-3.5 text-sm font-medium focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 transition-all"
           />
         </div>
+
+        {/* AI Parsing status */}
+        {parsing && (
+          <div className="flex items-center gap-2 text-xs text-accent font-semibold animate-pulse py-2">
+            <Sparkles className="h-4 w-4 animate-spin" />
+            Analyzing transcript with multilingual AI...
+          </div>
+        )}
 
         {/* AI Live Parse Card */}
         {parsedData && (
