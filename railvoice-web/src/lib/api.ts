@@ -563,15 +563,20 @@ export const api = {
 
   dispatch: {
     getRoster: async (): Promise<RosterSummary> => {
-      return apiFetch("/admin/dispatch/roster");
+      const res = await apiFetch<ApiEnvelope<RosterSummary> | RosterSummary>("/admin/dispatch/roster");
+      return (res && "data" in res && res.data) ? res.data : (res as RosterSummary);
     },
     getRecommendations: async (): Promise<DispatchRecommendation[]> => {
-      return apiFetch("/admin/dispatch/recommendations");
+      const res = await apiFetch<ApiEnvelope<DispatchRecommendation[]> | DispatchRecommendation[]>("/admin/dispatch/recommendations");
+      if (res && "data" in res && Array.isArray(res.data)) return res.data;
+      if (Array.isArray(res)) return res;
+      return [];
     },
     autoAssign: async (): Promise<AutoDispatchResult> => {
-      return apiFetch("/admin/dispatch/auto-assign", {
+      const res = await apiFetch<ApiEnvelope<AutoDispatchResult> | AutoDispatchResult>("/admin/dispatch/auto-assign", {
         method: "POST",
       });
+      return (res && "data" in res && res.data) ? res.data : (res as AutoDispatchResult);
     },
   },
 };

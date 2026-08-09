@@ -69,6 +69,12 @@ export default function AdminDispatchPage() {
     off_duty: { label: "Off Duty", color: "bg-muted-foreground" },
   };
 
+  const recList: DispatchRecommendation[] = Array.isArray(recommendations)
+    ? recommendations
+    : (recommendations && typeof recommendations === "object" && "data" in recommendations && Array.isArray((recommendations as any).data))
+    ? (recommendations as any).data
+    : [];
+
   return (
     <main className="flex-1 overflow-y-auto p-4 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -92,7 +98,7 @@ export default function AdminDispatchPage() {
             </Button>
             <Button
               className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold shadow-lg shadow-amber-500/20"
-              disabled={dispatching || autoAssignMutation.isPending || !recommendations?.length}
+              disabled={dispatching || autoAssignMutation.isPending || recList.length === 0}
               onClick={() => autoAssignMutation.mutate()}
             >
               <Zap className={`h-4 w-4 mr-2 ${dispatching ? "animate-spin" : ""}`} />
@@ -142,7 +148,7 @@ export default function AdminDispatchPage() {
               <Sparkles className="h-4 w-4 text-orange-500" />
             </div>
             <div>
-              <div className="text-2xl font-bold font-mono text-orange-500">{recommendations?.length || 0}</div>
+              <div className="text-2xl font-bold font-mono text-orange-500">{recList.length}</div>
               <p className="text-xs text-muted-foreground mt-1">Optimal staff-to-issue pairs</p>
             </div>
           </Card>
@@ -189,20 +195,20 @@ export default function AdminDispatchPage() {
               <p className="text-xs text-muted-foreground mt-0.5">Intelligent staff-to-issue routing suggestions powered by skill matching and priority scores</p>
             </div>
             <Badge variant="outline" className="font-mono text-xs border-amber-500/30 text-amber-500">
-              {recommendations?.length || 0} Matches Found
+              {recList.length} Matches Found
             </Badge>
           </div>
           <div>
             {recsLoading ? (
               <div className="py-8 text-center text-sm text-muted-foreground">Loading AI recommendations...</div>
-            ) : !recommendations || recommendations.length === 0 ? (
+            ) : recList.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-1" />
                 <span>All open grievances have assigned personnel or no unassigned high-priority tickets remain!</span>
               </div>
             ) : (
               <div className="space-y-4">
-                {recommendations.map((rec) => {
+                {recList.map((rec) => {
                   const cfg = skillBadges[rec.recommended_staff.skill_category] || skillBadges.housekeeping;
                   return (
                     <motion.div
