@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -60,8 +59,14 @@ export default function LoginPage() {
     ) => {
       setAuth(user as never, access, refresh);
       const persona = user.persona ?? resolvePersona(user.roles);
+      const requestedPath = new URLSearchParams(window.location.search).get("next");
+      const safeRequestedPath =
+        requestedPath?.startsWith("/") && !requestedPath.startsWith("//")
+          ? requestedPath
+          : null;
       const home =
         preferredHome ||
+        safeRequestedPath ||
         (isOpsPersona(persona as "passenger" | "station_admin" | "main_admin")
           ? "/admin/dashboard"
           : "/");
@@ -322,10 +327,7 @@ export default function LoginPage() {
           )}
 
           <p className="text-center text-xs text-muted-foreground">
-            Or{" "}
-            <Link href="/report" className="font-medium text-accent hover:underline">
-              report anonymously
-            </Link>
+            Sign in is required to access RailVoice and submit issues.
           </p>
         </Card>
       </motion.div>

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 import uuid
 
@@ -7,8 +7,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.ai.daily_summary import daily_summary_generator
-from app.core.config import settings
 from app.core.deps import get_db, require_official
 from app.core.enums import IssueStatus, TERMINAL_STATUSES, TimelineEventType, Visibility
 from app.models.issue import Issue, IssueTimelineEvent
@@ -18,7 +16,6 @@ from app.schemas.common import (
     DashboardKPIs,
     Envelope,
     EscalateRequest,
-    MergeRequest,
     Meta,
     NotifyMainAdminRequest,
     StatusUpdateRequest,
@@ -39,6 +36,7 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
         IssueStatus.FORWARDED_DIVISION.value,
         IssueStatus.FORWARDED_STATION_MANAGER.value,
         IssueStatus.FORWARDED_ZONE.value,
+        IssueStatus.ACTION_STARTED.value,
     },
     IssueStatus.ASSIGNED.value: {
         IssueStatus.ACTION_STARTED.value,
@@ -57,13 +55,13 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
         IssueStatus.ACTION_STARTED.value,
     },
     IssueStatus.FORWARDED_ZONE.value: {IssueStatus.ASSIGNED.value, IssueStatus.ACTION_STARTED.value},
-    IssueStatus.ACTION_STARTED.value: {IssueStatus.WORK_IN_PROGRESS.value},
+    IssueStatus.ACTION_STARTED.value: {IssueStatus.WORK_IN_PROGRESS.value, IssueStatus.COMPLETED.value},
     IssueStatus.WORK_IN_PROGRESS.value: {
         IssueStatus.WAITING_FOR_MATERIAL.value,
         IssueStatus.COMPLETED.value,
     },
     IssueStatus.WAITING_FOR_MATERIAL.value: {IssueStatus.WORK_IN_PROGRESS.value},
-    IssueStatus.COMPLETED.value: {IssueStatus.VERIFIED_COMPLETE.value},
+    IssueStatus.COMPLETED.value: {IssueStatus.VERIFIED_COMPLETE.value, IssueStatus.CLOSED.value},
     IssueStatus.VERIFIED_COMPLETE.value: {IssueStatus.CLOSED.value},
 }
 
@@ -76,43 +74,6 @@ ESCALATE_STATUS = {
 
 def _scoped_issues(query, officer: User):
     return apply_issue_location_scope(query, officer)
-
-
-async def _compute_sla_kpis(db: AsyncSession, officer: User) -> tuple[float | None, int]:
-    open_statuses = [s.value for s in IssueStatus if s not in TERMINAL_STATUSES]
-    now = datetime.now(timezone.utc)
-
-    # Average resolution hours (last 90 days)
-    since = now - timedelta(days=90)
-    avg_q = _scoped_issues(
-        select(
-            func.avg(
-                func.extract("epoch", Issue.resolved_at - Issue.created_at) / 3600.0
-            )
-        ).where(
-            Issue.resolved_at.is_not(None),
-            Issue.resolved_at >= since,
-        ),
-        officer,
-    )
-    avg_val = await db.scalar(avg_q)
-    avg_hours = round(float(avg_val), 2) if avg_val is not None else None
-
-    # Open issues past severity SLA
-    open_q = _scoped_issues(
-        select(Issue.id, Issue.severity, Issue.created_at).where(Issue.status.in_(open_statuses)),
-        officer,
-    )
-    rows = (await db.execute(open_q)).all()
-    breaches = 0
-    for _, severity, created_at in rows:
-        if not created_at:
-            continue
-        hours = settings.sla_hours_for_severity(int(severity or 3))
-        deadline = created_at + timedelta(hours=hours)
-        if now > deadline:
-            breaches += 1
-    return avg_hours, breaches
 
 
 @router.get("/dashboard", response_model=Envelope[dict])
@@ -157,24 +118,20 @@ async def admin_dashboard(
             officer,
         )
     )
-    avg_hours, sla_breaches = await _compute_sla_kpis(db, officer)
     kpis = DashboardKPIs(
         open_issues=open_count or 0,
         in_progress=in_progress or 0,
         resolved_today=resolved_today or 0,
-        avg_resolution_hours=avg_hours,
-        sla_breaches=sla_breaches,
+        avg_resolution_hours=None,
+        sla_breaches=0,
         emergency_open=emergency or 0,
     )
     top = await db.execute(
         _scoped_issues(
             select(Issue)
             .options(*ISSUE_RESPONSE_LOAD)
-            .where(
-                Issue.is_public.is_(True),
-                Issue.status != IssueStatus.DUPLICATE_MERGED.value,
-            )
-            .order_by(Issue.priority_score.desc())
+            .where(Issue.is_public.is_(True))
+            .order_by(Issue.support_count.desc(), Issue.created_at.desc())
             .limit(5),
             officer,
         )
@@ -198,11 +155,8 @@ async def admin_issue_queue(
     query = (
         select(Issue)
         .options(*ISSUE_RESPONSE_LOAD)
-        .where(
-            Issue.is_public.is_(True),
-            Issue.status != IssueStatus.DUPLICATE_MERGED.value,
-        )
-        .order_by(Issue.priority_score.desc())
+        .where(Issue.is_public.is_(True))
+        .order_by(Issue.support_count.desc(), Issue.created_at.desc())
         .limit(limit)
     )
     if status_filter:
@@ -212,34 +166,6 @@ async def admin_issue_queue(
     issues = result.scalars().all()
     return Envelope(
         data={"items": [issue_to_out(i).model_dump(mode="json") for i in issues]},
-        meta=Meta(),
-    )
-
-
-@router.post("/issues/{issue_id}/merge")
-async def merge_issues(
-    issue_id: uuid.UUID,
-    body: MergeRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    officer: Annotated[User, Depends(require_official)],
-) -> Envelope[dict]:
-    primary = await db.get(Issue, issue_id)
-    if not primary:
-        raise HTTPException(status_code=404, detail="Issue not found")
-    enforce_issue_location_scope(officer, primary)
-
-    try:
-        primary = await issue_service.merge_issues(
-            db,
-            primary_id=issue_id,
-            duplicate_ids=body.duplicate_ids,
-            actor=officer,
-            remarks=body.remarks,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return Envelope(
-        data={"issue": issue_to_out(primary).model_dump(mode="json")},
         meta=Meta(),
     )
 
@@ -267,7 +193,7 @@ async def update_issue_status(
     issue.status = body.status
     if body.status == IssueStatus.CLOSED.value:
         issue.closed_at = datetime.now(timezone.utc)
-    if body.status == IssueStatus.COMPLETED.value:
+    if body.status in {IssueStatus.COMPLETED.value, IssueStatus.RESOLVED.value if hasattr(IssueStatus, 'RESOLVED') else 'resolved'}:
         issue.resolved_at = datetime.now(timezone.utc)
 
     event = IssueTimelineEvent(
@@ -489,7 +415,7 @@ async def export_issues_pdf(
     if station_code:
         query = query.join(Issue.station).where(Station.code == station_code.upper())
     query = _scoped_issues(query, officer)
-    result = await db.execute(query.order_by(Issue.priority_score.desc()))
+    result = await db.execute(query.order_by(Issue.support_count.desc(), Issue.created_at.desc()))
     issues = list(result.scalars().all())
     content = issues_to_pdf(issues)
     return Response(
@@ -499,48 +425,13 @@ async def export_issues_pdf(
     )
 
 
-@router.get("/analytics/ai-insights/daily-summary")
-async def daily_ai_summary(
-    _: Annotated[User, Depends(require_official)],
-    target_date: date | None = Query(None),
-) -> Envelope[dict]:
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session
-
-    engine = create_engine(settings.database_url_sync)
-    with Session(engine) as session:
-        summary = daily_summary_generator.generate(session, target_date)
-    return Envelope(data=summary, meta=Meta())
-
-
-@router.get("/spam-queue")
-async def spam_review_queue(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    officer: Annotated[User, Depends(require_official)],
-    limit: int = 50,
-) -> Envelope[dict]:
-    query = _scoped_issues(
-        select(Issue)
-        .where(Issue.status == IssueStatus.SPAM.value)
-        .order_by(Issue.created_at.desc())
-        .limit(limit),
-        officer,
-    )
-    result = await db.execute(query)
-    issues = result.scalars().all()
-    return Envelope(
-        data={"items": [issue_to_out(i).model_dump(mode="json") for i in issues]},
-        meta=Meta(),
-    )
-
-
 @router.post("/reports/notify-main")
 async def notify_main_admin(
     body: NotifyMainAdminRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     officer: Annotated[User, Depends(require_official)],
 ) -> Envelope[dict]:
-    """Station Admin sends a briefing notice to all Main Admins."""
+    """Station Admin sends an official briefing report to Western Railway Main Admins."""
     from app.core.enums import RoleCode
     from app.models.user import Role, UserRole
     from app.services.personas import PERSONA_MAIN_ADMIN, PERSONA_STATION_ADMIN, user_persona
@@ -596,38 +487,3 @@ async def notify_main_admin(
         data={"notified": notified, "open_issues": open_count or 0, "scope": scope_note},
         meta=Meta(),
     )
-
-
-@router.get("/sla-risk-radar", response_model=Envelope[list[dict]])
-async def get_sla_risk_radar(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    official: Annotated[User, Depends(require_official)],
-    min_risk_score: float = Query(default=0.0, ge=0.0, le=100.0),
-) -> Envelope[list[dict]]:
-    """Predictive SLA Radar endpoint returning open grievances sorted by highest SLA breach risk."""
-    from app.ai.sla_predictor import sla_predictor
-
-    open_statuses = [s.value for s in IssueStatus if s not in TERMINAL_STATUSES]
-    stmt = (
-        select(Issue)
-        .options(*ISSUE_RESPONSE_LOAD)
-        .where(Issue.status.in_(open_statuses))
-    )
-    stmt = apply_issue_location_scope(stmt, official)
-    res = await db.execute(stmt)
-    open_issues = res.scalars().unique().all()
-
-    station_counts: dict[uuid.UUID, int] = {}
-    for issue in open_issues:
-        if issue.station_id:
-            station_counts[issue.station_id] = station_counts.get(issue.station_id, 0) + 1
-
-    risk_predictions = []
-    for issue in open_issues:
-        st_count = station_counts.get(issue.station_id, 0) if issue.station_id else 0
-        risk_data = sla_predictor.predict_issue_sla_risk(issue, station_open_count=st_count)
-        if risk_data["risk_score_pct"] >= min_risk_score:
-            risk_predictions.append(risk_data)
-
-    risk_predictions.sort(key=lambda x: x["risk_score_pct"], reverse=True)
-    return Envelope(data=risk_predictions, meta=Meta())

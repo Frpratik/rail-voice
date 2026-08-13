@@ -8,11 +8,11 @@ import uuid
 
 @pytest.mark.asyncio
 async def test_idempotency_key_prevents_duplicate_processing(
-    client: AsyncClient, anonymous_headers: dict, bandra_station_id: str
+    client: AsyncClient, auth_headers: dict, bandra_station_id: str
 ):
     uid = uuid.uuid4()
     key = f"test-key-{uid}"
-    headers = {**anonymous_headers, "Idempotency-Key": key}
+    headers = {**auth_headers, "Idempotency-Key": key}
     payload = {
         "description": f"Unique idempotency description {uid} with sufficient length to bypass duplicate filter",
         "station_id": bandra_station_id,

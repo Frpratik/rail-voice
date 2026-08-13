@@ -2,21 +2,24 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Flame, MessageCircle, ThumbsUp } from "lucide-react";
+import { AlertTriangle, Flame, MessageCircle, ThumbsUp } from "lucide-react";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import type { Issue } from "@/lib/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
 export function IssueCard({
   issue,
+  href,
   className,
   index = 0,
 }: {
   issue: Issue;
+  href?: string;
   className?: string;
   index?: number;
 }) {
-  const trending = issue.trending_score > 0.5;
+  const targetHref = href ?? `/issues/${issue.id}`;
+  const highSupport = issue.support_count >= 25;
 
   return (
     <motion.div
@@ -24,7 +27,7 @@ export function IssueCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.04, 0.24), duration: 0.35 }}
     >
-      <Link href={`/issues/${issue.id}`} className="block group">
+      <Link href={targetHref} className="block group">
         <article
           className={cn(
             "relative overflow-hidden rounded-2xl border border-card-border bg-card p-5 transition-all duration-300",
@@ -34,14 +37,18 @@ export function IssueCard({
           )}
         >
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            {trending && (
+            {highSupport && (
               <Badge variant="accent">
                 <Flame className="h-3 w-3" />
-                Trending
+                High Priority
               </Badge>
             )}
-            {issue.is_emergency && <Badge variant="emergency">Emergency</Badge>}
-            <Badge variant="muted">{issue.location.station.code}</Badge>
+            {issue.is_emergency && (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Urgent Hazard
+              </Badge>
+            )}
+            <Badge variant="muted">{issue.location.station.code || issue.location.station.name}</Badge>
             {issue.category && (
               <Badge variant="outline">{issue.category.name}</Badge>
             )}
@@ -58,8 +65,8 @@ export function IssueCard({
           <div className="mt-5 flex items-center justify-between gap-3 border-t border-card-border pt-4">
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5 font-medium text-foreground/80">
-                <ThumbsUp className="h-3.5 w-3.5" />
-                {issue.support_count}
+                <ThumbsUp className="h-3.5 w-3.5 text-accent" />
+                {issue.support_count} Upvotes
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <MessageCircle className="h-3.5 w-3.5" />

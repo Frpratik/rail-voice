@@ -2,12 +2,16 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Clock3, Inbox, ShieldAlert } from "lucide-react";
-import { EmergencyBroadcastModal } from "@/components/admin/emergency-broadcast-modal";
-import { WhatsAppSimulatorCard } from "@/components/admin/whatsapp-simulator-card";
-import { SLARiskRadar } from "@/components/admin/sla-risk-radar";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  Inbox,
+  Shield,
+} from "lucide-react";
 import { IssueCard } from "@/components/issues/issue-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,7 +62,6 @@ function StatCard({
 }
 
 export default function AdminDashboardPage() {
-  const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: () => api.admin.dashboard(),
@@ -68,20 +71,15 @@ export default function AdminDashboardPage() {
   if (error) {
     return (
       <Card elevated className="mx-auto max-w-lg p-10 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+          <Shield className="h-6 w-6" />
+        </div>
         <p className="text-lg font-semibold tracking-tight">Official access required</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sign in with an operations account to view this console.
+          Sign in with an authorized Station Admin or Railway Authority account.
         </p>
-        {process.env.NEXT_PUBLIC_OTP_MOCK !== "false" && (
-          <p className="mt-4 space-y-1 rounded-xl bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-            <span className="block">Passenger · +919111111111</span>
-            <span className="block">Station Admin · +919888888888</span>
-            <span className="block">Main Admin · +919999999999</span>
-            <span className="block">OTP · 123456</span>
-          </p>
-        )}
         <Link href="/login" className="mt-6 inline-block">
-          <Button variant="accent">Sign in</Button>
+          <Button variant="accent">Sign in to console</Button>
         </Link>
       </Card>
     );
@@ -92,26 +90,20 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <EmergencyBroadcastModal
-        isOpen={emergencyModalOpen}
-        onClose={() => setEmergencyModalOpen(false)}
-      />
-
       <PageHeader
-        eyebrow="Operations"
-        title="Overview"
-        description="Live station performance and AI-ranked priority queue."
+        eyebrow="Station Operations"
+        title="Command Dashboard"
+        description="Review citizen grievances, prioritize urgent safety hazards, and escalate reports to Western Railway."
         action={
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setEmergencyModalOpen(true)}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold gap-1.5 shadow-md shadow-rose-600/20"
-            >
-              <ShieldAlert className="h-4 w-4" /> Broadcast Emergency
-            </Button>
+            <Link href="/admin/reports">
+              <Button variant="outline" className="gap-1.5">
+                <FileText className="h-4 w-4" /> Generate Report
+              </Button>
+            </Link>
             <Link href="/admin/issues">
-              <Button variant="outline">
-                Open queue
+              <Button variant="accent" className="gap-1.5">
+                Open Triage Queue
                 <ArrowUpRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -119,43 +111,28 @@ export default function AdminDashboardPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => (
+          Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-2xl" />
           ))
         ) : (
           <>
-            <StatCard label="Open issues" value={kpis?.open_issues ?? 0} icon={Inbox} />
+            <StatCard label="Open Grievances" value={kpis?.open_issues ?? 0} icon={Inbox} />
             <StatCard
-              label="In progress"
+              label="Action In Progress"
               value={kpis?.in_progress ?? 0}
               icon={Clock3}
               tone="warn"
             />
             <StatCard
-              label="Resolved today"
+              label="Resolved Today"
               value={kpis?.resolved_today ?? 0}
               icon={CheckCircle2}
               tone="ok"
             />
             <StatCard
-              label="Avg resolution (h)"
-              value={
-                kpis?.avg_resolution_hours != null
-                  ? Number(kpis.avg_resolution_hours).toFixed(1)
-                  : "—"
-              }
-              icon={Clock3}
-            />
-            <StatCard
-              label="SLA breaches"
-              value={kpis?.sla_breaches ?? 0}
-              icon={AlertTriangle}
-              tone={(kpis?.sla_breaches ?? 0) > 0 ? "danger" : "default"}
-            />
-            <StatCard
-              label="Emergency open"
+              label="Emergency Hazards"
               value={kpis?.emergency_open ?? 0}
               icon={AlertTriangle}
               tone={(kpis?.emergency_open ?? 0) > 0 ? "danger" : "default"}
@@ -164,46 +141,48 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
-      {/* AI SLA Velocity & WhatsApp Simulator Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SLARiskRadar />
-        <WhatsAppSimulatorCard />
-      </div>
-
       <section>
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h2 className="text-display text-lg font-semibold tracking-tight">
-              AI priority queue
+              Top Community-Supported Issues
             </h2>
             <p className="text-sm text-muted-foreground">
-              Highest signal issues ranked for triage
+              Issues requiring immediate station review and operational action
             </p>
           </div>
           <Link
             href="/admin/issues"
-            className="text-sm font-medium text-accent hover:underline"
+            className="text-xs font-semibold uppercase tracking-[0.14em] text-accent transition-colors hover:underline"
           >
-            View all
+            View all queue →
           </Link>
         </div>
-        <div className="grid gap-4">
-          {topIssues.map((issue, i) => (
-            <motion.div
-              key={issue.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <IssueCard issue={issue} index={0} />
-            </motion.div>
-          ))}
-          {!isLoading && topIssues.length === 0 && (
-            <Card className="p-8 text-center text-sm text-muted-foreground">
-              Queue is clear. Nice work.
-            </Card>
-          )}
-        </div>
+
+        {isLoading ? (
+          <div className="grid gap-4 md:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-40 rounded-2xl" />
+            ))}
+          </div>
+        ) : topIssues.length === 0 ? (
+          <Card className="p-8 text-center text-muted-foreground">
+            <p className="text-sm">No open issues requiring triage at your assigned station.</p>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {topIssues.map((issue, i) => (
+              <motion.div
+                key={issue.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: i * 0.04 }}
+              >
+                <IssueCard issue={issue} href={`/admin/issues?focus=${issue.id}`} />
+              </motion.div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

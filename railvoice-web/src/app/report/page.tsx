@@ -1,428 +1,291 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { Check, ChevronLeft, Mic } from "lucide-react";
-import { VoiceAssistantModal } from "@/components/voice-assistant-modal";
-import { DuplicateSheet } from "@/components/issues/duplicate-sheet";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Camera,
+  Check,
+  FileText,
+  Image as ImageIcon,
+  MapPin,
+  Train,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { Input, Label, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/empty-state";
-import { api, ApiError } from "@/lib/api";
-import { useAuthStore } from "@/lib/auth-store";
-import { saveOfflineReport } from "@/lib/offline-queue";
-import type { SimilarIssue } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { PNRTelemetryWidget } from "@/components/issues/pnr-telemetry-widget";
+import { api } from "@/lib/api";
 
-const STEPS = ["Location", "Details", "Review"];
+const CATEGORIES = [
+  { id: "platform_cleanliness", label: "Cleanliness & Waste" },
+  { id: "station_infrastructure", label: "Station Infrastructure" },
+  { id: "lifts_escalators", label: "Lifts & Escalators" },
+  { id: "safety_security", label: "Safety & Hazard" },
+  { id: "train_coach", label: "Train & Coach" },
+  { id: "facilities", label: "Ticket Counters & Fans" },
+];
 
 export default function ReportPage() {
   const router = useRouter();
-  const { user, anonymousSessionId, setAnonymous } = useAuthStore();
-  const [step, setStep] = useState(1);
   const [stationId, setStationId] = useState("");
-  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
+  const [categoryCode, setCategoryCode] = useState("platform_cleanliness");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [similarIssues, setSimilarIssues] = useState<SimilarIssue[]>([]);
-  const [threshold, setThreshold] = useState(0.82);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [divergenceReason, setDivergenceReason] = useState("");
-  const [checking, setChecking] = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [trainNumber, setTrainNumber] = useState("");
+  const [coachNumber, setCoachNumber] = useState("");
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
-  
-  // Telemetry state
-  const [pnrData, setPnrData] = useState<{
-    pnr_number: string;
-    train_number: string;
-    coach_number: string;
-    berth_number: string;
-    upcoming_station_code: string;
-  } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const { data: stationsData } = useQuery({
+  const { data: stationsData, isLoading: stationsLoading } = useQuery({
     queryKey: ["stations"],
     queryFn: () => api.stations.list({ zone_code: "WR" }),
   });
   const stations = stationsData?.data ?? [];
 
-  const ensureSession = async () => {
-    if (user) return;
-    const existing =
-      anonymousSessionId ||
-      (typeof window !== "undefined"
-        ? localStorage.getItem("anonymous_session_id")
-        : null);
-    if (existing) {
-      if (!anonymousSessionId) setAnonymous(existing);
-      return;
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selected = Array.from(e.target.files);
+      setPhotoFiles((prev) => [...prev, ...selected].slice(0, 3));
     }
-    const res = await api.auth.anonymous();
-    setAnonymous(res.data.anonymous_session_id);
   };
 
-  const submitCheck = async () => {
-    if (description.length < 20) {
-      toast.error("Description must be at least 20 characters");
-      return;
-    }
+  const removePhoto = (index: number) => {
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!stationId) {
-      toast.error("Please select a station");
+      toast.error("Please select the railway station");
       return;
     }
-    if (typeof window !== "undefined" && !navigator.onLine) {
-      const offlineId = crypto.randomUUID();
-      // eslint-disable-next-line react-hooks/purity
-      const now = Date.now();
-      await saveOfflineReport({
-        id: offlineId,
-        title: title || "Offline Grievance Report",
-        description,
-        station_id: stationId,
-        photoBlob: photoFiles[0] || undefined,
-        createdAt: now,
-        status: "queued",
-      });
-      toast.success("⚡ Offline Mode: Report queued in IndexedDB. Will auto-sync when cellular signal resumes!");
-      router.push("/");
+    if (description.trim().length < 10) {
+      toast.error("Please provide at least 10 characters in the problem description");
       return;
     }
 
-    setChecking(true);
-    try {
-      await ensureSession();
-      const res = await api.issues.checkDuplicates({
-        description,
-        station_id: stationId,
-        title: title || undefined,
-      });
-      if (res.data.has_similar) {
-        setSimilarIssues(res.data.similar_issues);
-        setThreshold(res.data.threshold);
-        setDuplicateOpen(true);
-      } else {
-        await createIssue(false);
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Check failed");
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  const createIssue = async (force: boolean) => {
-    await ensureSession();
+    setSubmitting(true);
     try {
       const res = await api.issues.create({
-        description,
         station_id: stationId,
-        title: title || undefined,
-        force_create: force,
-        divergence_reason: force ? divergenceReason : undefined,
-        ...(pnrData || {}),
+        title: title.trim() || undefined,
+        description: description.trim(),
+        is_emergency: isEmergency,
+        train_number: trainNumber.trim() || undefined,
+        coach_number: coachNumber.trim() || undefined,
       });
+
       const issueId = res.data.issue.id;
-      for (const file of photoFiles.slice(0, 5)) {
-        try {
-          await api.issues.uploadPhoto(issueId, file);
-        } catch {
-          toast.error(`Could not upload ${file.name}`);
+
+      // Upload photos if attached
+      if (photoFiles.length > 0) {
+        for (const file of photoFiles) {
+          try {
+            await api.issues.uploadPhoto(issueId, file);
+          } catch {
+            // Non-blocking if photo upload fails
+          }
         }
       }
-      toast.success("Issue submitted successfully");
-      setDuplicateOpen(false);
+
+      toast.success("Problem reported successfully! Station Admin notified.");
       router.push(`/issues/${issueId}`);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        const detail = e.details as { similar_issues?: SimilarIssue[] };
-        setSimilarIssues(detail?.similar_issues ?? []);
-        setDuplicateOpen(true);
-        return;
-      }
-      toast.error(e instanceof Error ? e.message : "Submit failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit grievance");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const supportMutation = useMutation({
-    mutationFn: (id: string) => api.issues.support(id),
-    onSuccess: (res) => {
-      toast.success(res.data.message);
-      setDuplicateOpen(false);
-      router.push(`/issues/${res.data.issue_id}`);
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   return (
-    <div className="mx-auto max-w-xl">
-      <VoiceAssistantModal
-        isOpen={voiceModalOpen}
-        onClose={() => setVoiceModalOpen(false)}
-      />
-
-      <div className="mb-6 flex items-center justify-between rounded-2xl border border-accent/40 bg-accent/10 p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground shadow-md">
-            <Mic className="h-5 w-5 animate-pulse" />
-          </div>
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-accent">
-              AI Voice Assistant
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Speak or type in Hindi, Marathi, Gujarati, Hinglish, or English
-            </div>
-          </div>
-        </div>
-        <Button
-          onClick={() => setVoiceModalOpen(true)}
-          variant="accent"
-          size="sm"
-          className="shrink-0 font-bold"
-        >
-          Try Voice AI
-        </Button>
-      </div>
-
+    <div className="mx-auto max-w-2xl space-y-8">
       <PageHeader
-        eyebrow="Report"
-        title="Tell us what’s wrong"
-        description="Three quick steps. AI checks for similar issues before you create a new one."
+        eyebrow="Citizen Reporting"
+        title="Report a Problem"
+        description="Submit a station or train grievance directly to Western Railway station managers."
       />
 
-      {/* Step indicator */}
-      <div className="mb-8 flex items-center gap-2">
-        {STEPS.map((label, i) => {
-          const n = i + 1;
-          const done = step > n;
-          const current = step === n;
-          return (
-            <div key={label} className="flex flex-1 flex-col gap-2">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Station Selector */}
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-accent" />
+            <h2 className="text-base font-semibold">1. Location & Station</h2>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="station">Station on Western Railway *</Label>
+            <select
+              id="station"
+              value={stationId}
+              onChange={(e) => setStationId(e.target.value)}
+              disabled={stationsLoading}
+              className="w-full h-11 rounded-xl border border-card-border bg-background px-3.5 text-sm font-medium text-foreground transition-colors focus:border-accent focus:outline-none"
+              required
+            >
+              <option value="">Select a Station (Churchgate → Virar)</option>
+              {stations.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name} ({st.code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="train">Train / Local (Optional)</Label>
+              <Input
+                id="train"
+                placeholder="e.g. 90123 / Fast Local"
+                value={trainNumber}
+                onChange={(e) => setTrainNumber(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="coach">Coach / Platform (Optional)</Label>
+              <Input
+                id="coach"
+                placeholder="e.g. Platform 2 / FC-2"
+                value={coachNumber}
+                onChange={(e) => setCoachNumber(e.target.value)}
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* Problem Details */}
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-accent" />
+            <h2 className="text-base font-semibold">2. Problem Details</h2>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setCategoryCode(cat.id)}
+                  className={`rounded-xl border p-2.5 text-left text-xs font-medium transition-all ${
+                    categoryCode === cat.id
+                      ? "border-accent bg-accent/10 text-foreground font-semibold"
+                      : "border-card-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="title">Summary / Short Title</Label>
+            <Input
+              id="title"
+              placeholder="e.g. Escalator not working at Platform 1 North Exit"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={150}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="desc">Detailed Description *</Label>
+            <Textarea
+              id="desc"
+              rows={4}
+              placeholder="Describe the exact location, safety hazard, or maintenance needed so duty staff can act immediately..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* Emergency Toggle */}
+          <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+            <input
+              type="checkbox"
+              id="emergency"
+              checked={isEmergency}
+              onChange={(e) => setIsEmergency(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-destructive/40 text-destructive focus:ring-destructive"
+            />
+            <label htmlFor="emergency" className="cursor-pointer text-xs leading-relaxed text-foreground">
+              <span className="font-bold text-destructive block flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Urgent Safety Hazard?
+              </span>
+              Check this box if this problem poses an immediate danger to passenger safety (e.g. live wire, track obstruction, broken paver tile near train door).
+            </label>
+          </div>
+        </Card>
+
+        {/* Photo Upload */}
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Camera className="h-5 w-5 text-accent" />
+            <h2 className="text-base font-semibold">3. Evidence Photo (Optional)</h2>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {photoFiles.map((file, i) => (
               <div
-                className={cn(
-                  "h-1.5 rounded-full transition-colors duration-300",
-                  done || current ? "bg-accent" : "bg-muted"
-                )}
-              />
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
-                    done || current
-                      ? "bg-accent text-accent-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {done ? <Check className="h-3 w-3" /> : n}
-                </span>
-                <span
-                  className={cn(
-                    "text-[11px] font-medium",
-                    current ? "text-foreground" : "text-muted-foreground"
-                  )}
-                >
-                  {label}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <AnimatePresence mode="wait">
-        {step === 1 && (
-          <motion.div
-            key="s1"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-          >
-            <div className="space-y-6">
-              <PNRTelemetryWidget
-                isEditable
-                onPnrFound={(data) => {
-                  setPnrData(data);
-                  const st = stations.find((s) => s.code === data.upcoming_station_code);
-                  if (st) setStationId(st.id);
-                }}
-              />
-
-              <div className="relative flex items-center py-2">
-                <div className="flex-grow border-t border-muted-foreground/20"></div>
-                <span className="shrink-0 px-4 text-xs font-medium text-muted-foreground">OR</span>
-                <div className="flex-grow border-t border-muted-foreground/20"></div>
-              </div>
-
-              <Card elevated className="space-y-5 p-6">
-                <div>
-                  <Label htmlFor="station">Station</Label>
-                  <Select
-                    id="station"
-                    value={stationId}
-                    onChange={(e) => setStationId(e.target.value)}
-                  >
-                    <option value="">Select a station</option>
-                    {stations.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.code})
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <Button
-                  variant="accent"
-                  className="w-full"
-                  size="lg"
-                  onClick={() => setStep(2)}
-                  disabled={!stationId}
-                >
-                  Continue
-                </Button>
-              </Card>
-            </div>
-          </motion.div>
-        )}
-
-        {step === 2 && (
-          <motion.div
-            key="s2"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-          >
-            <Card elevated className="space-y-5 p-6">
-              <div>
-                <Label htmlFor="description">What’s the problem?</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe what you see — location details help a lot…"
+                key={i}
+                className="relative h-24 w-24 rounded-2xl border border-card-border bg-muted/40 overflow-hidden flex items-center justify-center"
+              >
+                <img
+                  src={URL.createObjectURL(file)}
+                  alt="preview"
+                  className="h-full w-full object-cover"
                 />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {description.length}/5000 · minimum 20 characters
-                </p>
+                <button
+                  type="button"
+                  onClick={() => removePhoto(i)}
+                  className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white hover:bg-black"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </div>
-              <div>
-                <Label htmlFor="title">Short title (optional)</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Missing dustbin near Platform 2"
-                />
-              </div>
-              <div>
-                <Label htmlFor="photos">Photos (optional, max 5)</Label>
-                <Input
-                  id="photos"
+            ))}
+
+            {photoFiles.length < 3 && (
+              <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-card-border bg-background transition-colors hover:border-accent hover:bg-accent/5">
+                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                <span className="mt-1 text-[10px] font-medium text-muted-foreground">
+                  Add Photo
+                </span>
+                <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  onChange={(e) =>
-                    setPhotoFiles(Array.from(e.target.files ?? []).slice(0, 5))
-                  }
+                  accept="image/*"
+                  onChange={handlePhotoSelect}
+                  className="hidden"
                 />
-                {photoFiles.length > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {photoFiles.length} file(s) selected
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(1)}>
-                  <ChevronLeft className="h-4 w-4" />
-                  Back
-                </Button>
-                <Button
-                  className="flex-1"
-                  variant="accent"
-                  onClick={() => setStep(3)}
-                  disabled={description.trim().length < 20}
-                >
-                  Continue
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        )}
+              </label>
+            )}
+          </div>
+        </Card>
 
-        {step === 3 && (
-          <motion.div
-            key="s3"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-          >
-            <Card elevated className="space-y-5 p-6">
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Review your report. We’ll run a semantic duplicate check before
-                creating anything new.
-              </p>
-              <div className="rounded-2xl bg-muted/60 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Station
-                </p>
-                <p className="mt-1 font-semibold tracking-tight">
-                  {stations.find((s) => s.id === stationId)?.name}
-                </p>
-                {title && (
-                  <>
-                    <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      Title
-                    </p>
-                    <p className="mt-1 font-medium">{title}</p>
-                  </>
-                )}
-                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  Description
-                </p>
-                <p className="mt-1 text-sm leading-relaxed text-foreground/90">
-                  {description}
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep(2)}>
-                  <ChevronLeft className="h-4 w-4" />
-                  Back
-                </Button>
-                <Button
-                  variant="accent"
-                  className="flex-1"
-                  size="lg"
-                  disabled={checking}
-                  onClick={submitCheck}
-                >
-                  {checking ? "Checking for similar issues…" : "Submit report"}
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <DuplicateSheet
-        open={duplicateOpen}
-        similarIssues={similarIssues}
-        threshold={threshold}
-        loading={supportMutation.isPending || checking}
-        showCreateForm={showCreateForm}
-        divergenceReason={divergenceReason}
-        onDivergenceChange={setDivergenceReason}
-        onSupport={(id) => supportMutation.mutate(id)}
-        onCreateAnyway={() => setShowCreateForm(true)}
-        onConfirmCreate={() => createIssue(true)}
-        onClose={() => {
-          setDuplicateOpen(false);
-          setShowCreateForm(false);
-        }}
-      />
+        <Button
+          type="submit"
+          variant="accent"
+          size="lg"
+          disabled={submitting}
+          className="w-full gap-2 text-base font-semibold shadow-lg shadow-accent/20"
+        >
+          {submitting ? "Submitting Grievance..." : "Submit Problem Report"}
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+      </form>
     </div>
   );
 }

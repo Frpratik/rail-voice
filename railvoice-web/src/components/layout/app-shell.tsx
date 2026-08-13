@@ -5,19 +5,20 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Bell,
+  ClipboardList,
   Home,
-  MapPin,
   Moon,
   Plus,
+  Shield,
   Sun,
   User,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/lib/auth-store";
+import { isOfficial } from "@/lib/roles";
 import { cn } from "@/lib/utils";
-
-import { EmergencyBanner } from "@/components/layout/emergency-banner";
 
 const emptySubscribe = () => () => {};
 const getClientSnapshot = () => true;
@@ -46,8 +47,10 @@ function LogoMark({ className }: { className?: string }) {
 export function AppHeader() {
   const { resolvedTheme, setTheme } = useTheme();
   const pathname = usePathname();
+  const user = useAuthStore((s) => s.user);
   const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
   const [scrolled, setScrolled] = useState(false);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -58,18 +61,24 @@ export function AppHeader() {
   if (pathname.startsWith("/admin")) return null;
 
   const isLogin = pathname.startsWith("/login");
+  const official = isOfficial(user?.roles);
+
+  const navItems = [
+    { href: "/", label: "Feed" },
+    { href: "/my-issues", label: "My Issues" },
+    { href: "/report", label: "Report Problem" },
+    ...(official ? [{ href: "/admin/dashboard", label: "Admin Console" }] : []),
+  ];
 
   return (
-    <>
-      <EmergencyBanner />
-      <header
-        className={cn(
-          "sticky top-0 z-40 transition-all duration-300",
-          scrolled
-            ? "border-b border-card-border bg-card/80 shadow-[0_8px_30px_rgba(10,11,13,0.04)] backdrop-blur-2xl"
-            : "border-b border-transparent bg-transparent"
-        )}
-      >
+    <header
+      className={cn(
+        "sticky top-0 z-40 transition-all duration-300",
+        scrolled
+          ? "border-b border-card-border bg-card/80 shadow-[0_8px_30px_rgba(10,11,13,0.04)] backdrop-blur-2xl"
+          : "border-b border-transparent bg-transparent"
+      )}
+    >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2.5">
           <LogoMark className="transition-transform duration-300 group-hover:scale-105" />
@@ -80,12 +89,7 @@ export function AppHeader() {
 
         {!isLogin && (
           <nav className="hidden items-center gap-1 md:flex">
-            {[
-              { href: "/", label: "Feed" },
-              { href: "/nearby", label: "Corridor" },
-              { href: "/leaderboard", label: "Leaderboard" },
-              { href: "/report", label: "Report" },
-            ].map((item) => {
+            {navItems.map((item) => {
               const active =
                 item.href === "/"
                   ? pathname === "/"
@@ -132,6 +136,13 @@ export function AppHeader() {
           )}
           {!isLogin && (
             <>
+              {official && (
+                <Link href="/admin/dashboard" className="hidden sm:block">
+                  <Button variant="ghost" size="icon" aria-label="Admin Portal">
+                    <Shield className="h-4 w-4 text-accent" />
+                  </Button>
+                </Link>
+              )}
               <Link href="/notifications" className="hidden sm:block">
                 <Button variant="ghost" size="icon" aria-label="Notifications">
                   <Bell className="h-4 w-4" />
@@ -152,20 +163,24 @@ export function AppHeader() {
         </div>
       </div>
     </header>
-    </>
   );
 }
 
 export function BottomNav() {
   const pathname = usePathname();
+  const user = useAuthStore((s) => s.user);
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/login")) return null;
 
+  const official = isOfficial(user?.roles);
+
   const items = [
     { href: "/", icon: Home, label: "Home" },
-    { href: "/nearby", icon: MapPin, label: "Nearby" },
+    { href: "/my-issues", icon: ClipboardList, label: "My issues" },
     { href: "/report", icon: Plus, label: "Report", accent: true },
-    { href: "/notifications", icon: Bell, label: "Alerts" },
+    ...(official
+      ? [{ href: "/admin/dashboard", icon: Shield, label: "Admin" }]
+      : [{ href: "/notifications", icon: Bell, label: "Alerts" }]),
     { href: "/profile", icon: User, label: "Profile" },
   ];
 
@@ -220,16 +235,19 @@ export function SiteFooter() {
             </span>
           </div>
           <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Community-powered issue reporting for the Western Railway corridor.
+            Citizen grievance reporting & escalation platform for Western Railway (Mumbai Suburban).
             Churchgate → Virar.
           </p>
         </div>
         <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-          <Link href="/nearby" className="transition-colors hover:text-foreground">
-            Stations
+          <Link href="/" className="transition-colors hover:text-foreground">
+            Corridor Feed
+          </Link>
+          <Link href="/my-issues" className="transition-colors hover:text-foreground">
+            My Issues
           </Link>
           <Link href="/report" className="transition-colors hover:text-foreground">
-            Report
+            Report Grievance
           </Link>
           <Link href="/login" className="transition-colors hover:text-foreground">
             Sign in

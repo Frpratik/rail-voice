@@ -23,12 +23,12 @@ async def test_admin_dashboard_for_official(client: AsyncClient, admin_headers: 
 async def test_admin_issue_status_update(
     client: AsyncClient,
     admin_headers: dict,
-    anonymous_headers: dict,
+    auth_headers: dict,
     bandra_station_id: str,
 ):
     create = await client.post(
         f"{API}/issues",
-        headers=anonymous_headers,
+        headers=auth_headers,
         json={
             "description": "Water leakage from ceiling at Bandra platform 3 waiting area",
             "station_id": bandra_station_id,

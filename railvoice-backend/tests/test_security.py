@@ -13,10 +13,10 @@ async def test_issue_detail_not_found(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_issue_validation(client: AsyncClient, anonymous_headers: dict):
+async def test_create_issue_validation(client: AsyncClient, auth_headers: dict):
     response = await client.post(
         f"{API}/issues",
-        headers=anonymous_headers,
+        headers=auth_headers,
         json={"description": "short", "station_id": "00000000-0000-0000-0000-000000000001"},
     )
     assert response.status_code == 422

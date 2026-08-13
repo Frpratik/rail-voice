@@ -113,44 +113,20 @@ class CategoryOut(BaseModel):
     icon: str | None = None
 
 
-class SimilarIssueOut(BaseModel):
-    id: uuid.UUID
-    issue_number: str
-    title: str | None
-    description_preview: str
-    similarity: float
-    support_count: int
-    status: str
-    created_at: datetime
-
-
-class DuplicateCheckRequest(BaseModel):
-    description: str = Field(..., min_length=20, max_length=5000)
-    station_id: uuid.UUID
-    title: str | None = Field(None, max_length=200)
-
-
-class DuplicateCheckResponse(BaseModel):
-    has_similar: bool
-    threshold: float
-    similar_issues: list[SimilarIssueOut]
-    recommendation: str
-
-
 class IssueCreateRequest(BaseModel):
-    description: str = Field(..., min_length=20, max_length=5000)
+    description: str = Field(..., min_length=10, max_length=5000)
     station_id: uuid.UUID
     title: str | None = Field(None, max_length=200)
+    category_id: uuid.UUID | None = None
     platform_id: uuid.UUID | None = None
     train_number: str | None = Field(None, max_length=10)
     coach_number: str | None = Field(None, max_length=10)
     pnr_number: str | None = Field(None, max_length=10)
     berth_number: str | None = Field(None, max_length=10)
     upcoming_station_code: str | None = Field(None, max_length=10)
+    is_emergency: bool = False
     latitude: float | None = None
     longitude: float | None = None
-    force_create: bool = False
-    divergence_reason: str | None = Field(None, min_length=10, max_length=500)
 
 
 class IssueLocationOut(BaseModel):
@@ -216,11 +192,6 @@ class EscalateRequest(BaseModel):
     remarks: str = Field(..., min_length=5, max_length=2000)
 
 
-class MergeRequest(BaseModel):
-    duplicate_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=20)
-    remarks: str = Field(..., min_length=5, max_length=2000)
-
-
 class NotifyMainAdminRequest(BaseModel):
     remarks: str = Field(
         default="Station report ready for review",
@@ -241,16 +212,11 @@ class IssueOut(BaseModel):
     is_emergency: bool
     support_count: int
     comment_count: int
-    priority_score: float
-    trending_score: float
     category: CategoryOut | None = None
     location: IssueLocationOut
     creator: dict[str, Any] | None = None
     assignee: dict[str, Any] | None = None
     photos: list[PhotoOut] = []
-    resolution_photo_url: str | None = None
-    resolution_verification_score: float | None = None
-    resolution_status: str | None = None
     created_at: datetime
     updated_at: datetime
     resolved_at: datetime | None = None

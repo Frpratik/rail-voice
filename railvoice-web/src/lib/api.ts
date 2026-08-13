@@ -2,22 +2,13 @@ import type {
   ApiEnvelope,
   Comment,
   DashboardData,
-  DuplicateCheckResult,
   Issue,
-  ManagedUser,
   NotificationItem,
   Officer,
-  PaginationMeta,
   Photo,
   Station,
   TimelineEvent,
   User,
-  UserAuditRow,
-  VendorScorecardResponse,
-  StationHeatmapResponse,
-  RosterSummary,
-  DispatchRecommendation,
-  AutoDispatchResult,
 } from "./types";
 
 const API_BASE =
@@ -46,16 +37,6 @@ function getAccessToken(): string | null {
 function getRefreshToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("refresh_token");
-}
-
-function ensureAnonymousSession(): string {
-  if (typeof window === "undefined") return "";
-  let anon = localStorage.getItem("anonymous_session_id");
-  if (!anon) {
-    anon = crypto.randomUUID();
-    localStorage.setItem("anonymous_session_id", anon);
-  }
-  return anon;
 }
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -101,7 +82,6 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit & { _isRetry?: boolean } = {}
 ): Promise<T> {
-  const method = (options.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -116,8 +96,6 @@ export async function apiFetch<T>(
   const token = getAccessToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
-  } else if (method !== "GET" && method !== "HEAD") {
-    headers["X-Anonymous-Session"] = ensureAnonymousSession();
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -261,20 +239,35 @@ export const api = {
     logout: () => apiFetch<void>("/auth/logout", { method: "POST" }),
   },
 
+  users: {
+    me: () => apiFetch<ApiEnvelope<User>>("/users/me"),
+  },
+
   issues: {
-    list: (params?: { station_code?: string; sort?: string; limit?: number }) => {
+    list: (params?: {
+      station_code?: string;
+      status?: string;
+      sort?: "most_supported" | "newest";
+      limit?: number;
+    }) => {
       const q = new URLSearchParams();
       if (params?.station_code) q.set("station_code", params.station_code);
+      if (params?.status) q.set("status", params.status);
       if (params?.sort) q.set("sort", params.sort);
       if (params?.limit) q.set("limit", String(params.limit));
       const qs = q.toString();
       return apiFetch<
         ApiEnvelope<{
           items: Issue[];
-          pagination: { has_more: boolean; total_count: number };
+          pagination: {
+            next_cursor: string | null;
+            has_more: boolean;
+            total_count?: number;
+          };
         }>
       >(`/issues${qs ? `?${qs}` : ""}`);
     },
+
     get: (id: string) =>
       apiFetch<
         ApiEnvelope<{
@@ -283,300 +276,162 @@ export const api = {
           comments: Comment[];
         }>
       >(`/issues/${id}`),
-    checkDuplicates: (data: {
+
+    create: (payload: {
       description: string;
       station_id: string;
       title?: string;
+      category_id?: string;
+      platform_id?: string;
+      train_number?: string;
+      coach_number?: string;
+      pnr_number?: string;
+      berth_number?: string;
+      upcoming_station_code?: string;
+      is_emergency?: boolean;
+      latitude?: number;
+      longitude?: number;
     }) =>
-      apiFetch<ApiEnvelope<DuplicateCheckResult>>("/issues/check-duplicates", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    create: (data: Record<string, unknown>) =>
       apiFetch<ApiEnvelope<{ issue: Issue }>>("/issues", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       }),
+
     support: (id: string) =>
       apiFetch<
         ApiEnvelope<{
           issue_id: string;
           support_count: number;
+          subscribed_to_updates: boolean;
           message: string;
         }>
       >(`/issues/${id}/support`, { method: "POST" }),
-    listComments: (id: string) =>
-      apiFetch<ApiEnvelope<Comment[]>>(`/issues/${id}/comments`),
-    addComment: (id: string, body: string, parent_id?: string) =>
-      apiFetch<ApiEnvelope<Comment>>(`/issues/${id}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ body, parent_id }),
-      }),
-    uploadPhoto: async (id: string, file: File) => {
+
+    listMine: (params?: { limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.limit) q.set("limit", String(params.limit));
+      const qs = q.toString();
+      return apiFetch<
+        ApiEnvelope<{
+          items: Issue[];
+          pagination: {
+            next_cursor: string | null;
+            has_more: boolean;
+            total_count?: number;
+          };
+        }>
+      >(`/issues/mine${qs ? `?${qs}` : ""}`);
+    },
+
+    uploadPhoto: (issueId: string, file: File) => {
       const form = new FormData();
       form.append("file", file);
-      return apiFetch<ApiEnvelope<Photo>>(`/issues/${id}/photos`, {
+      return apiFetch<ApiEnvelope<Photo>>(`/issues/${issueId}/photos`, {
         method: "POST",
         body: form,
       });
     },
   },
 
+  comments: {
+    list: (issueId: string) =>
+      apiFetch<ApiEnvelope<{ items: Comment[] }>>(`/issues/${issueId}/comments`),
+
+    create: (issueId: string, payload: { body: string; parent_id?: string }) =>
+      apiFetch<ApiEnvelope<Comment>>(`/issues/${issueId}/comments`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+  },
+
   notifications: {
     list: () =>
-      apiFetch<
-        ApiEnvelope<{ items: NotificationItem[]; unread_count: number }>
-      >("/notifications"),
+      apiFetch<ApiEnvelope<{ items: NotificationItem[] }>>("/notifications"),
+
     markRead: (id: string) =>
       apiFetch<ApiEnvelope<NotificationItem>>(`/notifications/${id}/read`, {
-        method: "PATCH",
-      }),
-    markAllRead: () =>
-      apiFetch<ApiEnvelope<{ marked: number }>>("/notifications/read-all", {
         method: "POST",
       }),
   },
 
   admin: {
-    dashboard: () => apiFetch<ApiEnvelope<DashboardData>>("/admin/dashboard"),
-    issues: (status?: string) => {
-      const q = status ? `?status_filter=${status}` : "";
-      return apiFetch<ApiEnvelope<{ items: Issue[] }>>(`/admin/issues${q}`);
+    dashboard: () =>
+      apiFetch<ApiEnvelope<DashboardData>>("/admin/dashboard"),
+
+    issues: (params?: { status_filter?: string; limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.status_filter) q.set("status_filter", params.status_filter);
+      if (params?.limit) q.set("limit", String(params.limit));
+      const qs = q.toString();
+      return apiFetch<ApiEnvelope<{ items: Issue[] }>>(`/admin/issues${qs ? `?${qs}` : ""}`);
     },
-    updateStatus: (id: string, data: { status: string; remarks: string }) =>
-      apiFetch<ApiEnvelope<unknown>>(`/admin/issues/${id}/status`, {
+
+    updateStatus: (
+      id: string,
+      payload: { status: string; remarks: string; visibility?: string }
+    ) =>
+      apiFetch<
+        ApiEnvelope<{
+          issue: Issue;
+          timeline_event: {
+            id: string;
+            from_status: string;
+            to_status: string;
+            created_at: string;
+          };
+        }>
+      >(`/admin/issues/${id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ ...data, visibility: "public" }),
+        body: JSON.stringify(payload),
       }),
-    assign: (id: string, data: { assignee_id: string; remarks: string }) =>
-      apiFetch<ApiEnvelope<unknown>>(`/admin/issues/${id}/assign`, {
+
+    assign: (id: string, payload: { assignee_id: string; remarks: string }) =>
+      apiFetch<ApiEnvelope<{ issue: Issue }>>(`/admin/issues/${id}/assign`, {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       }),
+
     escalate: (
       id: string,
-      data: { target: "station_manager" | "division" | "zone"; remarks: string }
+      payload: { target: "station_manager" | "division" | "zone"; remarks: string }
     ) =>
-      apiFetch<ApiEnvelope<unknown>>(`/admin/issues/${id}/escalate`, {
+      apiFetch<ApiEnvelope<{ issue: Issue }>>(`/admin/issues/${id}/escalate`, {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       }),
-    merge: (
-      primaryId: string,
-      data: { duplicate_ids: string[]; remarks: string }
-    ) =>
-      apiFetch<ApiEnvelope<{ issue: Issue }>>(`/admin/issues/${primaryId}/merge`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+
     officers: () =>
       apiFetch<ApiEnvelope<{ items: Officer[] }>>("/admin/officers"),
-    downloadPdf: () => downloadAuthed("/admin/reports/issues.pdf", "railvoice-issues.pdf"),
-    downloadXlsx: () =>
-      downloadAuthed("/admin/reports/issues.xlsx", "railvoice-issues.xlsx"),
-    notifyMain: (remarks?: string) =>
+
+    exportXlsx: (params?: { station_code?: string; status_filter?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.station_code) q.set("station_code", params.station_code);
+      if (params?.status_filter) q.set("status_filter", params.status_filter);
+      const qs = q.toString();
+      return downloadAuthed(
+        `/admin/reports/issues.xlsx${qs ? `?${qs}` : ""}`,
+        "railvoice-issues.xlsx"
+      );
+    },
+
+    exportPdf: (params?: { station_code?: string; status_filter?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.station_code) q.set("station_code", params.station_code);
+      if (params?.status_filter) q.set("status_filter", params.status_filter);
+      const qs = q.toString();
+      return downloadAuthed(
+        `/admin/reports/issues.pdf${qs ? `?${qs}` : ""}`,
+        "railvoice-issues.pdf"
+      );
+    },
+
+    notifyMain: (remarks: string) =>
       apiFetch<ApiEnvelope<{ notified: number; open_issues: number; scope: string }>>(
         "/admin/reports/notify-main",
         {
           method: "POST",
-          body: JSON.stringify({
-            remarks: remarks || "Station report ready for review",
-          }),
+          body: JSON.stringify({ remarks }),
         }
       ),
-    users: {
-      list: (params?: Record<string, string | number | boolean | undefined>) => {
-        const q = new URLSearchParams();
-        if (params) {
-          Object.entries(params).forEach(([k, v]) => {
-            if (v !== undefined && v !== "" && v !== null) q.set(k, String(v));
-          });
-        }
-        const qs = q.toString();
-        return apiFetch<ApiEnvelope<{ items: ManagedUser[]; pagination: PaginationMeta }>>(
-          `/admin/users${qs ? `?${qs}` : ""}`
-        );
-      },
-      create: (data: {
-        mobile: string;
-        display_name: string;
-        email?: string;
-        role_code: string;
-        station_id?: string | null;
-        generate_password?: boolean;
-      }) =>
-        apiFetch<ApiEnvelope<{ user: ManagedUser; temporary_password: string | null }>>(
-          "/admin/users",
-          { method: "POST", body: JSON.stringify(data) }
-        ),
-      get: (id: string) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}`),
-      update: (id: string, data: { display_name?: string; email?: string; preferred_language?: string }) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(data),
-        }),
-      activate: (id: string) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/activate`, { method: "POST" }),
-      deactivate: (id: string) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/deactivate`, { method: "POST" }),
-      lock: (id: string, reason?: string) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/lock`, {
-          method: "POST",
-          body: JSON.stringify({ reason }),
-        }),
-      unlock: (id: string) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/unlock`, { method: "POST" }),
-      resetPassword: (id: string) =>
-        apiFetch<ApiEnvelope<{ temporary_password: string; user: ManagedUser }>>(
-          `/admin/users/${id}/reset-password`,
-          { method: "POST" }
-        ),
-      assignRole: (id: string, data: { role_code: string; station_id?: string | null }) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/assign-role`, {
-          method: "POST",
-          body: JSON.stringify(data),
-        }),
-      assignStation: (id: string, station_id: string | null) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/assign-station`, {
-          method: "POST",
-          body: JSON.stringify({ station_id }),
-        }),
-      softDelete: (id: string) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}`, { method: "DELETE" }),
-      restore: (id: string) =>
-        apiFetch<ApiEnvelope<ManagedUser>>(`/admin/users/${id}/restore`, { method: "POST" }),
-      audits: (id: string) =>
-        apiFetch<ApiEnvelope<{ items: UserAuditRow[] }>>(`/admin/users/${id}/audits`),
-      bulkDeactivate: (user_ids: string[]) =>
-        apiFetch<ApiEnvelope<{ updated: number; errors: string[] }>>(
-          `/admin/users/bulk/deactivate`,
-          { method: "POST", body: JSON.stringify({ user_ids }) }
-        ),
-      bulkLock: (user_ids: string[], reason?: string) =>
-        apiFetch<ApiEnvelope<{ updated: number; errors: string[] }>>(
-          `/admin/users/bulk/lock`,
-          { method: "POST", body: JSON.stringify({ user_ids, reason }) }
-        ),
-    },
-  },
-
-  me: {
-    get: () => apiFetch<ApiEnvelope<ManagedUser>>("/me"),
-    update: (data: { display_name?: string; email?: string; preferred_language?: string }) =>
-      apiFetch<ApiEnvelope<User>>("/me", {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
-    changePassword: (data: { current_password?: string; new_password: string }) =>
-      apiFetch<ApiEnvelope<{ message: string }>>("/me/change-password", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    uploadAvatar: async (file: File) => {
-      const form = new FormData();
-      form.append("file", file);
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-      const base = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-      const res = await fetch(`${base}/me/avatar`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error?.message || err?.detail || "Upload failed");
-      }
-      return res.json() as Promise<ApiEnvelope<{ avatar_url: string }>>;
-    },
-  },
-
-  search: {
-    text: (q: string, params?: { station_id?: string; limit?: number }) => {
-      const qs = new URLSearchParams({ q });
-      if (params?.station_id) qs.set("station_id", params.station_id);
-      if (params?.limit) qs.set("limit", String(params.limit));
-      return apiFetch<
-        ApiEnvelope<{
-          results: { issue: Issue; relevance_score: number; match_type: string }[];
-        }>
-      >(`/search?${qs}`);
-    },
-  },
-
-  telemetry: {
-    pnrLookup: (pnr_number: string) =>
-      apiFetch<
-        ApiEnvelope<{
-          pnr_number: string;
-          train_number: string;
-          train_name: string;
-          boarding_date: string;
-          boarding_station: string;
-          destination_station: string;
-          passengers: Array<Record<string, unknown>>;
-          chart_prepared: boolean;
-          obhs_assigned: boolean;
-        }>
-      >("/telemetry/pnr-lookup", {
-        method: "POST",
-        body: JSON.stringify({ pnr_number }),
-      }),
-    trainStatus: (train_number: string) =>
-      apiFetch<
-        ApiEnvelope<{
-          train_number: string;
-          train_name: string;
-          start_date: string;
-          is_running_live: boolean;
-          current_station: string;
-          upcoming_station: string;
-          delay_minutes: number;
-          latitude: number | null;
-          longitude: number | null;
-        }>
-      >(`/telemetry/train-status/${train_number}`),
-  },
-
-  vendors: {
-    getScorecard: async (): Promise<VendorScorecardResponse> => {
-      return apiFetch("/vendors/scorecard");
-    },
-    approvePenalty: async (id: string): Promise<void> => {
-      return apiFetch(`/vendors/penalty-notes/${id}/approve`, {
-        method: "POST",
-      });
-    },
-    triggerEngine: async (): Promise<{ status: string; penalty_notes_created: number }> => {
-      return apiFetch("/vendors/trigger-engine", {
-        method: "POST",
-      });
-    },
-  },
-
-  analytics: {
-    getStationHeatmap: async (): Promise<StationHeatmapResponse> => {
-      return apiFetch("/station-heatmap");
-    },
-  },
-
-  dispatch: {
-    getRoster: async (): Promise<RosterSummary> => {
-      const res = await apiFetch<ApiEnvelope<RosterSummary> | RosterSummary>("/admin/dispatch/roster");
-      return (res && "data" in res && res.data) ? res.data : (res as RosterSummary);
-    },
-    getRecommendations: async (): Promise<DispatchRecommendation[]> => {
-      const res = await apiFetch<ApiEnvelope<DispatchRecommendation[]> | DispatchRecommendation[]>("/admin/dispatch/recommendations");
-      if (res && "data" in res && Array.isArray(res.data)) return res.data;
-      if (Array.isArray(res)) return res;
-      return [];
-    },
-    autoAssign: async (): Promise<AutoDispatchResult> => {
-      const res = await apiFetch<ApiEnvelope<AutoDispatchResult> | AutoDispatchResult>("/admin/dispatch/auto-assign", {
-        method: "POST",
-      });
-      return (res && "data" in res && res.data) ? res.data : (res as AutoDispatchResult);
-    },
   },
 };

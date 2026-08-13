@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileSpreadsheet, FileText, Send } from "lucide-react";
+import { FileSpreadsheet, FileText, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,15 +15,18 @@ export default function AdminReportsPage() {
   const user = useAuthStore((s) => s.user);
   const persona = user?.persona ?? resolvePersona(user?.roles);
   const [remarks, setRemarks] = useState(
-    "Station briefing pack ready for Main Admin review"
+    "Station grievance summary report ready for Western Railway Main Authority review."
   );
   const [sending, setSending] = useState(false);
 
   const download = async (kind: "pdf" | "xlsx") => {
     try {
-      if (kind === "pdf") await api.admin.downloadPdf();
-      else await api.admin.downloadXlsx();
-      toast.success(`${kind.toUpperCase()} download started`);
+      if (kind === "pdf") {
+        await api.admin.exportPdf();
+      } else {
+        await api.admin.exportXlsx();
+      }
+      toast.success(`${kind.toUpperCase()} report download started`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Export failed");
     }
@@ -34,10 +37,10 @@ export default function AdminReportsPage() {
     try {
       const res = await api.admin.notifyMain(remarks);
       toast.success(
-        `Sent to ${res.data.notified} Main Admin · ${res.data.open_issues} open issues`
+        `Official Report Dispatched to ${res.data.notified} WR Super Admins (${res.data.open_issues} open issues included).`
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not notify Main Admin");
+      toast.error(e instanceof Error ? e.message : "Could not notify Main Authority");
     } finally {
       setSending(false);
     }
@@ -46,70 +49,75 @@ export default function AdminReportsPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Exports"
-        title="Reports"
+        eyebrow="Reporting & Escalation"
+        title="Official Reports & WR Escalation"
         description={
           persona === "station_admin"
-            ? "Download your station pack, then notify Main Admin."
-            : "Download corridor briefing packs and spreadsheet extracts."
+            ? "Generate your station grievance report pack and escalate to Western Railway Main Authority."
+            : "Generate Western Railway corridor grievance reports and audit extracts."
         }
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card elevated className="flex min-h-[200px] flex-col items-center justify-center gap-3 p-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-            <FileText className="h-5 w-5" />
+        <Card elevated className="flex min-h-[220px] flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+            <FileText className="h-6 w-6" />
           </div>
-          <h3 className="font-semibold tracking-tight">PDF briefing pack</h3>
-          <p className="max-w-xs text-sm text-muted-foreground">
-            Priority-sorted issue snapshot for station and corridor reviews.
+          <h3 className="text-base font-semibold tracking-tight">PDF Station Report Pack</h3>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            Official printable PDF summary of verified station grievances and urgent safety hazards.
           </p>
           <Button variant="accent" onClick={() => download("pdf")}>
-            Download PDF
+            Generate & Download PDF
           </Button>
         </Card>
 
-        <Card elevated className="flex min-h-[200px] flex-col items-center justify-center gap-3 p-8 text-center">
+        <Card elevated className="flex min-h-[220px] flex-col items-center justify-center gap-3 p-8 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-            <FileSpreadsheet className="h-5 w-5" />
+            <FileSpreadsheet className="h-6 w-6" />
           </div>
-          <h3 className="font-semibold tracking-tight">Excel extract</h3>
-          <p className="max-w-xs text-sm text-muted-foreground">
-            Filterable rows for offline analysis.
+          <h3 className="text-base font-semibold tracking-tight">Excel Audit Spreadsheet</h3>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            Structured XLSX dataset of all grievances, upvote numbers, categories, and resolution logs.
           </p>
-          <Button variant="accent" onClick={() => download("xlsx")}>
-            Download Excel
+          <Button variant="outline" onClick={() => download("xlsx")}>
+            Download Excel Spreadsheet
           </Button>
         </Card>
       </div>
 
-      {persona === "station_admin" && (
-        <Card elevated className="space-y-4 p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
-              <Send className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className="font-semibold tracking-tight">Send to Main Admin</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Notifies the corridor Main Admin with your open-issue count and a short note.
-              </p>
-            </div>
+      {/* Official Escalation to WR Super Admin */}
+      <Card elevated className="space-y-4 p-6 border-accent/30 bg-card">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+            <ShieldCheck className="h-5 w-5" />
           </div>
-          <Textarea
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-            placeholder="Brief note for Main Admin"
-          />
-          <Button
-            variant="accent"
-            disabled={sending || remarks.trim().length < 5}
-            onClick={() => void notifyMain()}
-          >
-            Notify Main Admin
-          </Button>
-        </Card>
-      )}
+          <div>
+            <h3 className="text-base font-semibold tracking-tight">
+              Escalate Report to Western Railway Main Authority
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Directly dispatches an official station report notification to the Western Railway Super Admin portal for immediate administrative visibility.
+            </p>
+          </div>
+        </div>
+        <Textarea
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+          placeholder="Executive summary note for Western Railway Main Authority..."
+          className="text-xs"
+          rows={3}
+        />
+        <Button
+          variant="accent"
+          disabled={sending || remarks.trim().length < 5}
+          onClick={() => void notifyMain()}
+          className="gap-2"
+        >
+          <Send className="h-4 w-4" />
+          {sending ? "Dispatching Report..." : "Dispatch Escalation Report to WR"}
+        </Button>
+      </Card>
     </div>
   );
 }

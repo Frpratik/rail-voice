@@ -14,7 +14,6 @@ from app.schemas.common import (
     IssueOut,
     NotificationOut,
     PhotoOut,
-    SimilarIssueOut,
     StationOut,
     TimelineEventOut,
     UserOut,
@@ -70,20 +69,6 @@ def station_to_out(station: Station, open_count: int | None = None) -> StationOu
         longitude=float(station.longitude),
         division=division,
         open_issue_count=open_count,
-    )
-
-
-def similar_issue_to_out(issue: Issue, similarity: float) -> SimilarIssueOut:
-    preview = issue.description[:120] + ("..." if len(issue.description) > 120 else "")
-    return SimilarIssueOut(
-        id=issue.id,
-        issue_number=issue.issue_number,
-        title=issue.title,
-        description_preview=preview,
-        similarity=round(similarity, 4),
-        support_count=issue.support_count,
-        status=issue.status,
-        created_at=issue.created_at,
     )
 
 
@@ -192,16 +177,11 @@ def issue_to_out(
         is_emergency=issue.is_emergency,
         support_count=issue.support_count,
         comment_count=issue.comment_count,
-        priority_score=float(issue.priority_score or 0),
-        trending_score=float(issue.trending_score or 0),
         category=category_out,
         location=location,
         creator=creator_out,
         assignee=assignee_out,
         photos=photos,
-        resolution_photo_url=issue.resolution_photo_url,
-        resolution_verification_score=float(issue.resolution_verification_score) if issue.resolution_verification_score is not None else None,
-        resolution_status=issue.resolution_status,
         created_at=issue.created_at,
         updated_at=issue.updated_at,
         resolved_at=issue.resolved_at,

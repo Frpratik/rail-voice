@@ -32,6 +32,14 @@ export function isOpsPersona(persona: Persona): boolean {
   return persona === "station_admin" || persona === "main_admin";
 }
 
+export function isOfficial(roles: string[] | undefined | null): boolean {
+  const set = new Set(roles ?? []);
+  return (
+    [...MAIN_ADMIN_ROLES].some((r) => set.has(r)) ||
+    [...STATION_ADMIN_ROLES].some((r) => set.has(r))
+  );
+}
+
 export const DEMO_ACCOUNTS = [
   {
     persona: "passenger" as const,

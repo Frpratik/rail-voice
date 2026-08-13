@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import admin, analytics, auth, csat, dispatch, emergency, gamification, issues, search, social, telemetry, users, vendors, voice, whatsapp
+from app.api.v1 import admin, auth, issues, search, social, users
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -12,12 +12,3 @@ api_router.include_router(users.me_router)
 api_router.include_router(social.comments_router)
 api_router.include_router(social.photos_router)
 api_router.include_router(social.notifications_router)
-api_router.include_router(whatsapp.router)
-api_router.include_router(emergency.router)
-api_router.include_router(gamification.router)
-api_router.include_router(voice.router)
-api_router.include_router(csat.router)
-api_router.include_router(telemetry.router)
-api_router.include_router(vendors.router)
-api_router.include_router(analytics.router)
-api_router.include_router(dispatch.router)

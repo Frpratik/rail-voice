@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Sora } from "next/font/google";
 import { Toaster } from "sonner";
 import { AppHeader, BottomNav, SiteFooter } from "@/components/layout/app-shell";
-import { OfflineQueueBanner } from "@/components/offline-queue-banner";
+import { AuthGate } from "@/components/auth-gate";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import "./globals.css";
@@ -25,8 +25,7 @@ export const metadata: Metadata = {
     template: "%s · RailVoice",
   },
   description:
-    "AI-powered community issue reporting for Western Railway — Churchgate to Virar.",
-  manifest: "/manifest.json",
+    "Community problem reporting and grievance escalation platform for Western Railway (Churchgate to Virar).",
 };
 
 export const viewport: Viewport = {
@@ -47,23 +46,24 @@ export default function RootLayout({
       <body className={`${sora.variable} ${mono.variable} font-sans antialiased`}>
         <ThemeProvider>
           <QueryProvider>
-            <div className="flex min-h-screen flex-col">
-              <OfflineQueueBanner />
-              <AppHeader />
-              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 sm:px-6 md:pb-12 md:pt-8">
-                {children}
-              </main>
-              <SiteFooter />
-              <BottomNav />
-            </div>
-            <Toaster
-              position="top-center"
-              richColors
-              closeButton
-              toastOptions={{
-                className: "font-sans!",
-              }}
-            />
+            <AuthGate>
+              <div className="flex min-h-screen flex-col">
+                <AppHeader />
+                <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 sm:px-6 md:pb-12 md:pt-8">
+                  {children}
+                </main>
+                <SiteFooter />
+                <BottomNav />
+              </div>
+              <Toaster
+                position="top-center"
+                richColors
+                closeButton
+                toastOptions={{
+                  className: "font-sans!",
+                }}
+              />
+            </AuthGate>
           </QueryProvider>
         </ThemeProvider>
       </body>

@@ -2,28 +2,34 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { type LucideIcon } from "lucide-react";
+import { Inbox, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function EmptyState({
-  icon: Icon,
+  icon: Icon = Inbox,
   title,
   description,
   actionLabel,
   actionHref,
   onAction,
+  action,
   className,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   title: string;
   description: string;
   actionLabel?: string;
   actionHref?: string;
   onAction?: () => void;
+  action?: { label: string; onClick?: () => void; href?: string };
   className?: string;
 }) {
+  const finalLabel = action?.label ?? actionLabel;
+  const finalHref = action?.href ?? actionHref;
+  const finalOnClick = action?.onClick ?? onAction;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -40,14 +46,14 @@ export function EmptyState({
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
         {description}
       </p>
-      {actionLabel && actionHref && (
-        <Link href={actionHref} className="mt-6">
-          <Button variant="accent">{actionLabel}</Button>
+      {finalLabel && finalHref && (
+        <Link href={finalHref} className="mt-6">
+          <Button variant="accent">{finalLabel}</Button>
         </Link>
       )}
-      {actionLabel && onAction && !actionHref && (
-        <Button variant="accent" className="mt-6" onClick={onAction}>
-          {actionLabel}
+      {finalLabel && finalOnClick && !finalHref && (
+        <Button variant="accent" className="mt-6" onClick={finalOnClick}>
+          {finalLabel}
         </Button>
       )}
     </motion.div>

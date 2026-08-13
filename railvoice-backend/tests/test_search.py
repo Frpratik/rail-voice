@@ -7,13 +7,13 @@ API = "/api/v1"
 @pytest.mark.asyncio
 async def test_hybrid_search_finds_issue(
     client: AsyncClient,
-    anonymous_headers: dict,
+    auth_headers: dict,
     bandra_station_id: str,
 ):
     description = "Broken lift near ticket counter at Bandra station west side"
     create = await client.post(
         f"{API}/issues",
-        headers=anonymous_headers,
+        headers=auth_headers,
         json={
             "description": description,
             "station_id": bandra_station_id,

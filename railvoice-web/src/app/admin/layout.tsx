@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
-import { CommandPalette } from "@/components/admin/command-palette";
 
 export default function AdminLayout({
   children,
@@ -14,30 +13,26 @@ export default function AdminLayout({
 
   return (
     <div className="fixed inset-0 z-50 flex bg-background">
-      <CommandPalette />
       <AdminSidebar pathname={pathname} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-card-border bg-card/40 px-5 backdrop-blur lg:h-16 lg:px-8">
           <div className="flex items-center gap-3 lg:hidden">
             <Link href="/admin/dashboard" className="text-sm font-semibold">
-              RailVoice Ops
+              RailVoice Station Ops
             </Link>
           </div>
           <nav className="flex gap-1 overflow-x-auto lg:hidden">
             {[
               { href: "/admin/dashboard", label: "Overview" },
-              { href: "/admin/issues", label: "Queue" },
-              { href: "/admin/users", label: "Users" },
-              { href: "/admin/analytics", label: "Analytics" },
-              { href: "/admin/analytics/heatmap", label: "Heatmap" },
+              { href: "/admin/issues", label: "Issue Triage" },
               { href: "/admin/reports", label: "Reports" },
-              { href: "/admin/vendors", label: "Vendors" },
+              { href: "/admin/users", label: "Users" },
             ].map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
-                  (l.href === "/admin/analytics" ? pathname === "/admin/analytics" : pathname.startsWith(l.href))
+                  pathname.startsWith(l.href)
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground"
                 }`}
@@ -50,7 +45,7 @@ export default function AdminLayout({
             href="/"
             className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
           >
-            ← App
+            ← Back to Public Feed
           </Link>
         </header>
         <div className="flex-1 overflow-y-auto p-5 sm:p-8">{children}</div>

@@ -1,33 +1,25 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.services.visual_resolver import VisualResolverService
-
-from app.ai.duplicate import effective_duplicate_threshold
-from app.core.deps import get_db, get_reporter_user
-from app.core.enums import DUPLICATE_SEARCH_EXCLUDED
+from app.core.deps import get_current_user_optional, get_db, get_reporter_user
 from app.models.issue import Issue
-from app.models.location import Division, IssueCategory, Station, Zone
+from app.models.location import IssueCategory, Station, Zone
 from app.models.user import User
 from app.schemas.common import (
-    DuplicateCheckRequest,
-    DuplicateCheckResponse,
     Envelope,
     IssueCreateRequest,
     IssueDetailOut,
     Meta,
-    SimilarIssueOut,
     StationOut,
     SupportResponse,
 )
-from app.schemas.mappers import issue_detail_to_out, issue_to_out, similar_issue_to_out, station_to_out
-from app.ai.duplicate import duplicate_detection_service
-from app.services.issue_service import DuplicateFoundError, issue_service
+from app.schemas.mappers import issue_detail_to_out, issue_to_out, station_to_out
+from app.services.issue_service import issue_service
 
 router = APIRouter(tags=["Issues", "Stations"])
 
@@ -68,34 +60,10 @@ async def get_station(
         .select_from(Issue)
         .where(
             Issue.station_id == station.id,
-            Issue.status.notin_([s.value for s in DUPLICATE_SEARCH_EXCLUDED]),
+            Issue.status.in_(["submitted", "under_review", "verified", "assigned", "action_started", "work_in_progress"]),
         )
     )
     return Envelope(data=station_to_out(station, open_count_result.scalar() or 0), meta=Meta())
-
-
-@router.post("/issues/check-duplicates", response_model=Envelope[DuplicateCheckResponse])
-async def check_duplicates(
-    body: DuplicateCheckRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[User, Depends(get_reporter_user)],
-) -> Envelope[DuplicateCheckResponse]:
-    similar = await duplicate_detection_service.find_similar(
-        db,
-        description=body.description,
-        station_id=body.station_id,
-        title=body.title,
-    )
-    similar_out = [similar_issue_to_out(s.issue, s.similarity) for s in similar]
-    return Envelope(
-        data=DuplicateCheckResponse(
-            has_similar=len(similar_out) > 0,
-            threshold=effective_duplicate_threshold(),
-            similar_issues=similar_out,
-            recommendation="support_existing" if similar_out else "create_new",
-        ),
-        meta=Meta(),
-    )
 
 
 @router.post("/issues", status_code=status.HTTP_201_CREATED)
@@ -109,6 +77,7 @@ async def create_issue(
             db,
             creator=user,
             station_id=body.station_id,
+            category_id=body.category_id,
             description=body.description,
             title=body.title,
             platform_id=body.platform_id,
@@ -117,21 +86,10 @@ async def create_issue(
             pnr_number=body.pnr_number,
             berth_number=body.berth_number,
             upcoming_station_code=body.upcoming_station_code,
+            is_emergency=getattr(body, "is_emergency", False),
             latitude=body.latitude,
             longitude=body.longitude,
-            force_create=body.force_create,
-            divergence_reason=body.divergence_reason,
         )
-    except DuplicateFoundError as exc:
-        similar_out = [similar_issue_to_out(s.issue, s.similarity) for s in exc.similar]
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "DUPLICATE_FOUND",
-                "message": "Similar issues exist. Support existing or create with reason.",
-                "similar_issues": [s.model_dump(mode="json") for s in similar_out],
-            },
-        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -152,7 +110,41 @@ async def create_issue(
                 category=category,
                 creator=user,
             ).model_dump(mode="json"),
-            "ai_processing": {"status": "completed", "tasks": ["embed", "categorize", "spam_check", "priority"]},
+        },
+        meta=Meta(),
+    )
+
+
+@router.get("/issues/mine")
+async def list_my_issues(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_reporter_user)],
+    limit: int = Query(50, ge=1, le=100),
+) -> Envelope[dict]:
+    query = (
+        select(Issue)
+        .options(
+            selectinload(Issue.station),
+            selectinload(Issue.category),
+            selectinload(Issue.photos),
+        )
+        .where(Issue.creator_id == user.id)
+        .order_by(Issue.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(query)
+    issues = result.scalars().all()
+    total = await db.scalar(
+        select(func.count()).select_from(Issue).where(Issue.creator_id == user.id)
+    )
+    return Envelope(
+        data={
+            "items": [issue_to_out(issue).model_dump(mode="json") for issue in issues],
+            "pagination": {
+                "next_cursor": None,
+                "has_more": (total or 0) > len(issues),
+                "total_count": total or 0,
+            },
         },
         meta=Meta(),
     )
@@ -162,9 +154,10 @@ async def create_issue(
 async def get_issue(
     issue_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User | None, Depends(get_current_user_optional)],
 ) -> Envelope[IssueDetailOut]:
     issue = await issue_service.get_issue_detail(db, issue_id)
-    if not issue or not issue.is_public:
+    if not issue or (not issue.is_public and issue.creator_id != getattr(user, "id", None)):
         raise HTTPException(status_code=404, detail="Issue not found")
     return Envelope(data=issue_detail_to_out(issue), meta=Meta())
 
@@ -173,9 +166,9 @@ async def get_issue(
 async def list_issues(
     db: Annotated[AsyncSession, Depends(get_db)],
     station_code: str | None = Query(None),
-    sort: str = Query("newest"),
+    status: str | None = Query(None),
+    sort: str = Query("most_supported"),
     limit: int = Query(20, ge=1, le=100),
-    cursor: str | None = Query(None),
 ) -> Envelope[dict]:
     query = (
         select(Issue)
@@ -184,14 +177,15 @@ async def list_issues(
     )
     if station_code:
         query = query.join(Issue.station).where(Station.code == station_code.upper())
+    if status:
+        query = query.where(Issue.status == status)
 
-    sort_map = {
-        "newest": Issue.created_at.desc(),
-        "most_supported": Issue.support_count.desc(),
-        "ai_priority": Issue.priority_score.desc(),
-        "trending": Issue.trending_score.desc(),
-    }
-    query = query.order_by(sort_map.get(sort, Issue.created_at.desc())).limit(limit)
+    if sort == "newest":
+        query = query.order_by(Issue.created_at.desc())
+    else:
+        query = query.order_by(Issue.support_count.desc(), Issue.created_at.desc())
+
+    query = query.limit(limit)
     result = await db.execute(query)
     issues = result.scalars().all()
     return Envelope(
@@ -225,18 +219,3 @@ async def support_issue(
         ),
         meta=Meta(),
     )
-
-
-@router.post("/issues/{issue_id}/resolve-with-verification")
-async def resolve_issue_with_verification(
-    issue_id: uuid.UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    file: UploadFile = File(...),
-):
-    contents = await file.read()
-    service = VisualResolverService(db)
-    result = await service.verify_and_resolve_issue(issue_id, contents, file.filename or "resolution.jpg")
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return Envelope(data=result, meta=Meta())
-

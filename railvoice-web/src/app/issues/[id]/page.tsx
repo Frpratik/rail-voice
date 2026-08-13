@@ -5,17 +5,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Share2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, MessageSquare, Send, Share2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { IssueTimeline } from "@/components/issues/issue-timeline";
-import { CSATFeedbackModal } from "@/components/issues/csat-feedback-modal";
-import { PNRTelemetryWidget } from "@/components/issues/pnr-telemetry-widget";
-import { BeforeAfterSlider } from "@/components/issues/before-after-slider";
 import { SupportButton } from "@/components/issues/support-button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Label, Textarea } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/input";
 import { IssueCardSkeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
@@ -24,10 +21,9 @@ import { formatRelativeTime } from "@/lib/utils";
 export default function IssueDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const { user, anonymousSessionId } = useAuthStore();
-  const [comment, setComment] = useState("");
+  const { user } = useAuthStore();
+  const [commentText, setCommentText] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["issue", id],
@@ -38,17 +34,17 @@ export default function IssueDetailPage() {
   const supportMutation = useMutation({
     mutationFn: () => api.issues.support(id),
     onSuccess: () => {
-      toast.success("Thank you for supporting this issue");
+      toast.success("Thank you for supporting this issue!");
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const commentMutation = useMutation({
-    mutationFn: () => api.issues.addComment(id, comment),
+    mutationFn: (text: string) => api.comments.create(id, { body: text }),
     onSuccess: () => {
-      setComment("");
-      toast.success("Comment posted");
+      setCommentText("");
+      toast.success("Comment posted successfully");
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -58,12 +54,12 @@ export default function IssueDetailPage() {
   if (error || !data) {
     return (
       <Card className="p-10 text-center">
-        <p className="font-semibold text-destructive">Issue not found</p>
+        <p className="font-semibold text-destructive">Grievance not found</p>
         <p className="mt-2 text-sm text-muted-foreground">
           It may be private, removed, or the API is offline.
         </p>
         <Link href="/" className="mt-5 inline-block">
-          <Button variant="outline">Back to feed</Button>
+          <Button variant="outline">Back to corridor feed</Button>
         </Link>
       </Card>
     );
@@ -75,49 +71,32 @@ export default function IssueDetailPage() {
   const share = async () => {
     const url = window.location.href;
     if (navigator.share) {
-      await navigator.share({ title: issue.title ?? "RailVoice issue", url });
+      await navigator.share({ title: issue.title ?? "RailVoice Grievance", url });
     } else {
       await navigator.clipboard.writeText(url);
-      toast.success("Link copied");
+      toast.success("Link copied to clipboard");
     }
   };
 
-  const onPhotoSelected = async (file?: File | null) => {
+  const onPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
       await api.issues.uploadPhoto(id, file);
       toast.success("Photo uploaded");
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  const onResolutionPhotoSelected = async (file?: File | null) => {
-    if (!file) return;
-    setVerifying(true);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-      const base = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-      const res = await fetch(`${base}/issues/${id}/resolve-with-verification`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
-      });
-      if (!res.ok) throw new Error("Resolution verification failed");
-      const json = await res.json();
-      toast.success(json.data.message || "Resolution photo submitted for AI verification");
-      queryClient.invalidateQueries({ queryKey: ["issue", id] });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Verification failed");
-    } finally {
-      setVerifying(false);
-    }
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentText.trim()) return;
+    commentMutation.mutate(commentText.trim());
   };
 
   return (
@@ -126,192 +105,180 @@ export default function IssueDetailPage() {
       animate={{ opacity: 1, y: 0 }}
       className="mx-auto max-w-2xl space-y-6"
     >
+      {/* Top Action Bar */}
       <div className="flex items-center justify-between">
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Feed
+          Corridor Feed
         </Link>
-        <Button variant="ghost" size="sm" onClick={share}>
+        <Button variant="ghost" size="sm" onClick={share} className="gap-1.5">
           <Share2 className="h-4 w-4" />
-          Share
+          Share Grievance
         </Button>
       </div>
 
-      <header>
-        <p className="font-mono text-xs text-muted-foreground">{issue.issue_number}</p>
-        <h1 className="text-display mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-          {issue.title ?? "Reported issue"}
-        </h1>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+      {/* Main Grievance Header */}
+      <Card className="p-6 sm:p-8 space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {issue.issue_number}
+            </p>
+            <h1 className="text-display mt-1 text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
+              {issue.title ?? "Grievance Report"}
+            </h1>
+          </div>
+          <StatusBadge status={issue.status} />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <Badge variant="muted">{issue.location.station.name}</Badge>
           {issue.category && <Badge variant="outline">{issue.category.name}</Badge>}
-          <StatusBadge status={issue.status} />
-          {issue.is_emergency && <Badge variant="emergency">Emergency</Badge>}
+          {issue.is_emergency && (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" /> Urgent Safety Hazard
+            </Badge>
+          )}
+          {issue.location.train_number && (
+            <Badge variant="muted">Train: {issue.location.train_number}</Badge>
+          )}
+          {issue.location.coach_number && (
+            <Badge variant="muted">Platform/Coach: {issue.location.coach_number}</Badge>
+          )}
         </div>
-      </header>
 
-      {issue.location?.train_number && (
-        <PNRTelemetryWidget
-          isEditable={false}
-          initialPnr={issue.location.pnr_number}
-          trainNumber={issue.location.train_number}
-          coachNumber={issue.location.coach_number}
-          berthNumber={issue.location.berth_number}
-          upcomingStationCode={issue.location.upcoming_station_code}
-        />
-      )}
-
-      <Card elevated className="p-6">
-        <SupportButton
-          supportCount={issue.support_count}
-          loading={supportMutation.isPending}
-          onSupport={() => {
-            if (!user && !anonymousSessionId) {
-              api.auth.anonymous().then((r) => {
-                useAuthStore.getState().setAnonymous(r.data.anonymous_session_id);
-                supportMutation.mutate();
-              });
-            } else {
-              supportMutation.mutate();
-            }
-          }}
-        />
-      </Card>
-
-      {/* AI Visual Verification Before/After Slider */}
-      {issue.resolution_photo_url && (
-        <Card className="p-6">
-          <BeforeAfterSlider
-            beforeUrl={photos[0]?.url || "/placeholder.jpg"}
-            afterUrl={issue.resolution_photo_url}
-            verificationScore={issue.resolution_verification_score}
-            resolutionStatus={issue.resolution_status}
+        {/* Upvote & Action row */}
+        <div className="flex items-center justify-between border-t border-b border-card-border py-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Reported by</p>
+            <p className="text-sm font-medium">
+              {issue.creator?.display_name ?? "Concerned Commuter"} · {formatRelativeTime(issue.created_at)}
+            </p>
+          </div>
+          <SupportButton
+            supportCount={issue.support_count}
+            supported={false}
+            loading={supportMutation.isPending}
+            onSupport={() => supportMutation.mutate()}
           />
-        </Card>
-      )}
+        </div>
 
-      <Card className="p-6">
-        <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          Description
-        </h2>
-        <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/90">
-          {issue.description}
-        </p>
-      </Card>
+        {/* Description Body */}
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            Description
+          </h3>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+            {issue.description}
+          </p>
+        </div>
 
-      <Card className="space-y-4 p-6">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Photos
-          </h2>
-          <div className="flex items-center gap-3">
-            <label className="cursor-pointer text-sm font-medium text-indigo-500 hover:underline">
-              {verifying ? "AI Verifying…" : "Submit Resolution Photo (AI)"}
+        {/* Evidence Photos */}
+        {photos.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Attached Evidence Photos ({photos.length})
+            </h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {photos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="group relative aspect-video overflow-hidden rounded-2xl border border-card-border bg-muted/30"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photo.url}
+                    alt="Evidence"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Add photo if logged in */}
+        {user && (
+          <div className="pt-2">
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-accent cursor-pointer hover:underline">
+              <Upload className="h-3.5 w-3.5" />
+              {uploading ? "Uploading photo..." : "Upload additional evidence photo"}
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
+                onChange={onPhotoSelected}
+                disabled={uploading}
                 className="hidden"
-                disabled={verifying}
-                onChange={(e) => onResolutionPhotoSelected(e.target.files?.[0])}
               />
             </label>
-            {(user || anonymousSessionId) && (
-              <label className="cursor-pointer text-sm font-medium text-accent hover:underline">
-                {uploading ? "Uploading…" : "Add complaint photo"}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  disabled={uploading}
-                  onChange={(e) => onPhotoSelected(e.target.files?.[0])}
-                />
-              </label>
-            )}
           </div>
+        )}
+      </Card>
+
+      {/* Official Status Progression Timeline */}
+      <Card className="p-6 sm:p-8 space-y-4">
+        <h2 className="text-base font-semibold text-foreground">
+          Official Action Timeline
+        </h2>
+        <IssueTimeline events={timeline} />
+      </Card>
+
+      {/* Community Comments Section */}
+      <Card className="p-6 sm:p-8 space-y-5">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-5 w-5 text-accent" />
+          <h2 className="text-base font-semibold text-foreground">
+            Community Comments ({comments.length})
+          </h2>
         </div>
-        {photos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No photos yet.</p>
+
+        {comments.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic py-2">
+            No comments yet. Have more details about this problem? Leave a note below.
+          </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {photos.map((p) => (
-              <a
-                key={p.id}
-                href={p.url}
-                target="_blank"
-                rel="noreferrer"
-                className="overflow-hidden rounded-xl border border-card-border bg-muted"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.url} alt="" className="h-28 w-full object-cover" />
-              </a>
+          <div className="space-y-3 divide-y divide-card-border">
+            {comments.map((c) => (
+              <div key={c.id} className="pt-3 first:pt-0 space-y-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">
+                    {c.author.display_name}
+                  </span>
+                  <span>{formatRelativeTime(c.created_at)}</span>
+                </div>
+                <p className="text-xs text-foreground leading-relaxed">
+                  {c.body}
+                </p>
+              </div>
             ))}
           </div>
         )}
-      </Card>
 
-      <Card className="space-y-4 p-6">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          Comments ({comments?.length ?? issue.comment_count})
-        </h2>
-        <div className="space-y-4">
-          {(comments ?? []).map((c) => (
-            <div key={c.id} className="rounded-xl bg-muted/50 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold tracking-tight">
-                  {c.author.display_name}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatRelativeTime(c.created_at)}
-                </p>
-              </div>
-              <p className="mt-2 text-sm leading-relaxed text-foreground/90">{c.body}</p>
-            </div>
-          ))}
-          {(comments ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground">No comments yet.</p>
-          )}
-        </div>
-        {user && !user.is_anonymous ? (
-          <div className="space-y-3 border-t border-card-border pt-4">
-            <Label htmlFor="comment">Add a comment</Label>
-            <Textarea
-              id="comment"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Share an update or more detail…"
-            />
+        <form onSubmit={handleCommentSubmit} className="pt-2 space-y-2">
+          <Textarea
+            rows={2}
+            placeholder={user ? "Write a comment or operational update..." : "Sign in to join the discussion..."}
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            disabled={!user || commentMutation.isPending}
+            className="text-xs"
+          />
+          <div className="flex justify-end">
             <Button
+              type="submit"
               variant="accent"
-              disabled={comment.trim().length < 1 || commentMutation.isPending}
-              onClick={() => commentMutation.mutate()}
+              size="sm"
+              disabled={!user || !commentText.trim() || commentMutation.isPending}
+              className="gap-1.5"
             >
-              Post comment
+              <Send className="h-3.5 w-3.5" />
+              {commentMutation.isPending ? "Posting..." : "Post Comment"}
             </Button>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            <Link href="/login" className="font-medium text-accent hover:underline">
-              Sign in
-            </Link>{" "}
-            to join the discussion.
-          </p>
-        )}
-      </Card>
-
-      <CSATFeedbackModal
-        issueId={issue.id}
-        currentStatus={issue.status}
-        onFeedbackSubmitted={() => queryClient.invalidateQueries({ queryKey: ["issue", id] })}
-      />
-
-      <Card className="p-6">
-        <h2 className="mb-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          Timeline
-        </h2>
-        <IssueTimeline events={timeline} />
+        </form>
       </Card>
     </motion.div>
   );

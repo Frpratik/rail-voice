@@ -61,37 +61,15 @@ async def get_current_user(
 
 
 async def get_reporter_user(
-    db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User | None, Depends(get_current_user_optional)],
-    x_anonymous_session: Annotated[str | None, Header()] = None,
 ) -> User:
-    if user:
-        return user
-
-    session_id: uuid.UUID | None = None
-    if x_anonymous_session:
-        try:
-            session_id = uuid.UUID(x_anonymous_session)
-        except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid anonymous session") from exc
-    else:
-        session_id = uuid.uuid4()
-
-    result = await db.execute(select(User).where(User.anonymous_session_id == session_id))
-    anon = result.scalar_one_or_none()
-    if anon:
-        return anon
-
-    anon = User(
-        display_name="Anonymous",
-        is_anonymous=True,
-        anonymous_session_id=session_id,
-        is_active=True,
-        is_verified=False,
-    )
-    db.add(anon)
-    await db.flush()
-    return anon
+    """Require a signed-in, non-anonymous passenger identity."""
+    if not user or user.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to continue",
+        )
+    return user
 
 
 def user_has_role(user: User, role_code: RoleCode) -> bool:

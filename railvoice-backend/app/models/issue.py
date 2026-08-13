@@ -1,7 +1,6 @@
 import uuid
 from datetime import datetime
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
     DateTime,
@@ -13,11 +12,10 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.config import settings
-from app.core.enums import IssueStatus, TimelineEventType, Visibility
+from app.core.enums import IssueStatus, Visibility
 from app.db.session import Base
 
 
@@ -37,18 +35,11 @@ class Issue(Base):
     subcategory_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("issue_categories.id"))
     title: Mapped[str | None] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding = mapped_column(Vector(settings.embedding_dimensions), nullable=True)
-    embedding_model: Mapped[str | None] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(50), default=IssueStatus.SUBMITTED.value, nullable=False)
     severity: Mapped[int] = mapped_column(Integer, default=3)
     support_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
-    priority_score: Mapped[float] = mapped_column(Numeric(8, 2), default=0)
-    trending_score: Mapped[float] = mapped_column(Numeric(8, 4), default=0)
-    ai_priority_score: Mapped[float | None] = mapped_column(Numeric(5, 4))
-    spam_score: Mapped[float | None] = mapped_column(Numeric(5, 4))
     is_emergency: Mapped[bool] = mapped_column(Boolean, default=False)
-    reopen_count: Mapped[int] = mapped_column(Integer, default=0)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True)
     train_number: Mapped[str | None] = mapped_column(String(10))
     coach_number: Mapped[str | None] = mapped_column(String(10))
@@ -57,14 +48,8 @@ class Issue(Base):
     upcoming_station_code: Mapped[str | None] = mapped_column(String(10))
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
-    merged_into_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"))
-    resolution_photo_url: Mapped[str | None] = mapped_column(String(512))
-    resolution_verification_score: Mapped[float | None] = mapped_column(Numeric(5, 2))
-    resolution_status: Mapped[str | None] = mapped_column(String(50))
-    divergence_reason: Mapped[str | None] = mapped_column(Text)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    edit_window_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -134,7 +119,7 @@ class IssuePhoto(Base):
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     thumbnail_key: Mapped[str | None] = mapped_column(String(500))
     perceptual_hash: Mapped[str | None] = mapped_column(String(64), index=True)
-    scan_status: Mapped[str] = mapped_column(String(20), default="pending")
+    scan_status: Mapped[str] = mapped_column(String(20), default="approved")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -168,20 +153,6 @@ class SystemConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
-
-class IssueFeedback(Base):
-    __tablename__ = "issue_feedback"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    issue_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), unique=True, nullable=False)
-    rating: Mapped[int] = mapped_column(Integer, nullable=False)
-    comments: Mapped[str | None] = mapped_column(Text)
-    is_reopened: Mapped[bool] = mapped_column(Boolean, default=False)
-    reopen_reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    issue: Mapped[Issue] = relationship()
 
 
 from app.models.location import IssueCategory, Station  # noqa: E402

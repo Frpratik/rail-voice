@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,14 +22,6 @@ export default function NotificationsPage() {
     retry: false,
   });
 
-  const markAll = useMutation({
-    mutationFn: () => api.notifications.markAllRead(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      toast.success("Marked all as read");
-    },
-  });
-
   const markOne = useMutation({
     mutationFn: (id: string) => api.notifications.markRead(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
@@ -37,57 +29,52 @@ export default function NotificationsPage() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-lg">
+      <div className="mx-auto max-w-lg space-y-6">
         <PageHeader
-          eyebrow="Alerts"
-          title="Notifications"
-          description="Sign in to see status updates for issues you care about."
+          eyebrow="Updates"
+          title="Status Notifications"
+          description="Sign in to see real-time updates for grievances you reported or supported."
         />
         <EmptyState
-          icon={Bell}
           title="Sign in required"
-          description="OTP or Google sign-in unlocks your alert feed."
-          actionLabel="Sign in"
-          actionHref="/login"
+          description="Sign in with your mobile number to view official station notifications."
+          action={{
+            label: "Sign in",
+            onClick: () => {
+              window.location.href = "/login";
+            },
+          }}
         />
       </div>
     );
   }
 
   const items = data?.data.items ?? [];
-  const unread = data?.data.unread_count ?? 0;
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
-      <div className="flex items-end justify-between gap-3">
-        <PageHeader
-          eyebrow="Alerts"
-          title="Notifications"
-          description={unread ? `${unread} unread` : "You’re caught up."}
-        />
-        {unread > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={markAll.isPending}
-            onClick={() => markAll.mutate()}
-          >
-            Mark all read
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        eyebrow="Updates"
+        title="Status Notifications"
+        description="Official alerts when station admins review, assign, or resolve problems."
+      />
 
       {isLoading && (
-        <Card className="p-8 text-center text-sm text-muted-foreground">Loading…</Card>
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          Loading notifications…
+        </Card>
       )}
 
       {!isLoading && items.length === 0 && (
         <EmptyState
-          icon={Bell}
           title="You’re all caught up"
-          description="When an issue you created or supported moves forward, we’ll notify you here."
-          actionLabel="Browse issues"
-          actionHref="/"
+          description="When a grievance you created or upvoted progresses, you'll receive official alerts here."
+          action={{
+            label: "Browse problems",
+            onClick: () => {
+              window.location.href = "/";
+            },
+          }}
         />
       )}
 
@@ -95,30 +82,31 @@ export default function NotificationsPage() {
         {items.map((n) => (
           <Card
             key={n.id}
-            className={`cursor-pointer p-4 transition-colors ${
-              n.is_read ? "opacity-80" : "border-accent/30 bg-accent/5"
-            }`}
             onClick={() => {
               if (!n.is_read) markOne.mutate(n.id);
             }}
+            className={`p-4 transition-colors ${
+              n.is_read ? "opacity-75" : "border-accent/40 bg-accent/5"
+            }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-semibold tracking-tight">{n.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{n.body}</p>
+                <p className="text-sm font-semibold text-foreground">{n.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  {n.body}
+                </p>
                 {n.issue_id && (
                   <Link
                     href={`/issues/${n.issue_id}`}
-                    className="mt-2 inline-block text-sm font-medium text-accent hover:underline"
-                    onClick={(e) => e.stopPropagation()}
+                    className="mt-2 inline-block text-xs font-semibold text-accent hover:underline"
                   >
-                    View issue
+                    View Grievance Ticket →
                   </Link>
                 )}
               </div>
-              <p className="shrink-0 text-xs text-muted-foreground">
+              <span className="shrink-0 text-[10px] text-muted-foreground">
                 {formatRelativeTime(n.created_at)}
-              </p>
+              </span>
             </div>
           </Card>
         ))}

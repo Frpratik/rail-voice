@@ -27,11 +27,11 @@ async def test_list_stations(client):
 
 
 @pytest.mark.asyncio
-async def test_duplicate_detection_flow(client, anonymous_headers, bandra_station_id):
+async def test_duplicate_detection_flow(client, auth_headers, bandra_station_id):
     description = "There should be a dustbin near Platform 2 bridge at Bandra."
     create1 = await client.post(
         f"{API}/issues",
-        headers=anonymous_headers,
+        headers=auth_headers,
         json={
             "description": description,
             "station_id": bandra_station_id,
@@ -44,7 +44,7 @@ async def test_duplicate_detection_flow(client, anonymous_headers, bandra_statio
 
     check = await client.post(
         f"{API}/issues/check-duplicates",
-        headers=anonymous_headers,
+        headers=auth_headers,
         json={
             "description": "Garbage bins are missing beside the foot over bridge on Bandra Platform 2",
             "station_id": bandra_station_id,
@@ -58,7 +58,7 @@ async def test_duplicate_detection_flow(client, anonymous_headers, bandra_statio
 
     dup_create = await client.post(
         f"{API}/issues",
-        headers=anonymous_headers,
+        headers=auth_headers,
         json={
             "description": "Garbage bins are missing beside the foot over bridge on Bandra Platform 2",
             "station_id": bandra_station_id,
@@ -69,7 +69,29 @@ async def test_duplicate_detection_flow(client, anonymous_headers, bandra_statio
 
     support = await client.post(
         f"{API}/issues/{result['similar_issues'][0]['id']}/support",
-        headers=anonymous_headers,
+        headers=auth_headers,
     )
     assert support.status_code == 200
     assert support.json()["data"]["support_count"] >= 1
+
+    mine = await client.get(f"{API}/issues/mine", headers=auth_headers)
+    assert mine.status_code == 200
+    mine_ids = {item["id"] for item in mine.json()["data"]["items"]}
+    assert create1.json()["data"]["issue"]["id"] in mine_ids
+
+
+@pytest.mark.asyncio
+async def test_anonymous_user_cannot_submit_issue(
+    client, anonymous_headers, bandra_station_id
+):
+    response = await client.post(
+        f"{API}/issues",
+        headers=anonymous_headers,
+        json={
+            "description": "Anonymous passengers must sign in before submitting this report",
+            "station_id": bandra_station_id,
+            "force_create": True,
+            "divergence_reason": "Authentication requirement test",
+        },
+    )
+    assert response.status_code == 401

@@ -1,4 +1,4 @@
-"""Seed Western Railway corridor data with exactly 3 clean test entries per domain table."""
+"""Seed Western Railway corridor data with clean core entities for RailVoice."""
 
 from __future__ import annotations
 
@@ -16,13 +16,8 @@ from app.models.issue import (
     Comment,
     IssueSupport,
     IssueTimelineEvent,
-    IssueFeedback,
     SystemConfig,
 )
-from app.models.emergency import EmergencyAlert
-from app.models.dispatch import WorkforceStaff, DispatchAssignment
-from app.models.vendor import VendorContract, VendorPenaltyNote
-from app.models.gamification import UserReputation
 from app.models.user import Role, User, UserRole, Notification
 from app.models.location import Division, IssueCategory, Station, Zone
 
@@ -141,423 +136,241 @@ def seed(session: Session) -> None:
             )
     session.flush()
 
-    # 5. System Config
-    configs = {
-        "duplicate_similarity_threshold": 0.82,
-        "anonymous_daily_issue_limit": 3,
-        "priority_weights": {
-            "support": 0.25,
-            "severity": 0.25,
-            "fresh": 0.15,
-            "trend": 0.20,
-            "ai": 0.15,
-        },
-    }
-    for key, value in configs.items():
-        if not session.get(SystemConfig, key):
-            session.add(SystemConfig(key=key, value=value))
-
-    # 6. Wipe existing transactional/dynamic data cleanly
-    session.execute(delete(DispatchAssignment))
-    session.execute(delete(WorkforceStaff))
-    session.execute(delete(VendorPenaltyNote))
-    session.execute(delete(VendorContract))
-    session.execute(delete(EmergencyAlert))
-    session.execute(delete(Notification))
-    session.execute(delete(UserReputation))
-    session.execute(delete(IssueFeedback))
+    # 5. Reset dynamic operational tables for a clean slate
     session.execute(delete(Comment))
     session.execute(delete(IssuePhoto))
     session.execute(delete(IssueSupport))
     session.execute(delete(IssueTimelineEvent))
     session.execute(delete(Issue))
+    session.execute(delete(Notification))
     session.flush()
 
-    # 7. Helper for role assignment
-    def _ensure_role(user: User, role_code: str, *, location_type: str | None = None, location_id=None) -> None:
-        role = session.execute(select(Role).where(Role.code == role_code)).scalar_one()
-        existing = session.execute(
-            select(UserRole).where(
-                UserRole.user_id == user.id,
-                UserRole.role_id == role.id,
-                UserRole.revoked_at.is_(None),
-            )
-        ).scalar_one_or_none()
-        if existing:
-            if location_type and location_id:
-                existing.location_type = location_type
-                existing.location_id = location_id
-            return
-        session.add(
-            UserRole(
-                user_id=user.id,
-                role_id=role.id,
-                location_type=location_type,
-                location_id=location_id,
-            )
-        )
+    # 6. Seed 3 Product Personas
+    now = datetime.now(timezone.utc)
+    super_admin_role = session.execute(select(Role).where(Role.code == "super_admin")).scalar_one()
+    manager_role = session.execute(select(Role).where(Role.code == "station_manager")).scalar_one()
+    passenger_role = session.execute(select(Role).where(Role.code == "passenger")).scalar_one()
 
-    # 8. Seed exactly 3 Core Personas
-    bandra = session.execute(select(Station).where(Station.code == "BA")).scalar_one()
-    andheri = session.execute(select(Station).where(Station.code == "ADH")).scalar_one()
-    churchgate = session.execute(select(Station).where(Station.code == "CCG")).scalar_one()
-
-    # 1) Main Admin
-    main_hash = hash_value("+919999999999")
-    main_admin = session.execute(select(User).where(User.mobile_hash == main_hash)).scalar_one_or_none()
+    # Persona A: Western Railway Main Authority
+    main_admin = session.execute(select(User).where(User.mobile_hash == hash_value("+919999999999"))).scalar_one_or_none()
     if not main_admin:
         main_admin = User(
-            display_name="Main Admin",
-            mobile_hash=main_hash,
-            mobile_last4="9999",
+            mobile_hash=hash_value("+919999999999"),
+            mobile_masked="+91******9999",
+            display_name="Western Railway Main Admin",
             is_verified=True,
             is_active=True,
         )
         session.add(main_admin)
         session.flush()
-    _ensure_role(main_admin, "super_admin")
+    session.execute(delete(UserRole).where(UserRole.user_id == main_admin.id))
+    session.add(UserRole(user_id=main_admin.id, role_id=super_admin_role.id, scope_type="global", scope_id=None))
 
-    # 2) Station Admin (Bandra)
-    station_hash = hash_value("+919888888888")
-    station_admin = session.execute(select(User).where(User.mobile_hash == station_hash)).scalar_one_or_none()
+    # Persona B: Bandra Station Admin
+    bandra_st = session.execute(select(Station).where(Station.code == "BA")).scalar_one()
+    station_admin = session.execute(select(User).where(User.mobile_hash == hash_value("+919888888888"))).scalar_one_or_none()
     if not station_admin:
         station_admin = User(
+            mobile_hash=hash_value("+919888888888"),
+            mobile_masked="+91******8888",
             display_name="Bandra Station Admin",
-            mobile_hash=station_hash,
-            mobile_last4="8888",
-            assigned_station_id=bandra.id,
             is_verified=True,
             is_active=True,
         )
         session.add(station_admin)
         session.flush()
-    _ensure_role(
-        station_admin,
-        "station_manager",
-        location_type="station",
-        location_id=bandra.id,
-    )
+    session.execute(delete(UserRole).where(UserRole.user_id == station_admin.id))
+    session.add(UserRole(user_id=station_admin.id, role_id=manager_role.id, scope_type="station", scope_id=bandra_st.id))
 
-    # 3) Passenger Demo
-    passenger_hash = hash_value("+919111111111")
-    passenger = session.execute(select(User).where(User.mobile_hash == passenger_hash)).scalar_one_or_none()
-    if not passenger:
-        passenger = User(
-            display_name="Passenger Demo",
-            mobile_hash=passenger_hash,
-            mobile_last4="1111",
-            assigned_station_id=bandra.id,
+    # Persona C: Daily Commuter
+    commuter = session.execute(select(User).where(User.mobile_hash == hash_value("+919111111111"))).scalar_one_or_none()
+    if not commuter:
+        commuter = User(
+            mobile_hash=hash_value("+919111111111"),
+            mobile_masked="+91******1111",
+            display_name="Rajesh Sharma (Commuter)",
             is_verified=True,
             is_active=True,
         )
-        session.add(passenger)
+        session.add(commuter)
         session.flush()
-    _ensure_role(passenger, "passenger")
+    session.execute(delete(UserRole).where(UserRole.user_id == commuter.id))
+    session.add(UserRole(user_id=commuter.id, role_id=passenger_role.id, scope_type="global", scope_id=None))
     session.flush()
 
-    # 9. Seed exactly 3 Issues
-    cat_infra = session.execute(select(IssueCategory).where(IssueCategory.code == "station_infrastructure")).scalar_one()
-    cat_clean = session.execute(select(IssueCategory).where(IssueCategory.code == "platform_cleanliness")).scalar_one()
-    cat_safety = session.execute(select(IssueCategory).where(IssueCategory.code == "safety_security")).scalar_one()
+    # 7. Seed 3 Core Test Issues
+    andheri_st = session.execute(select(Station).where(Station.code == "ADH")).scalar_one()
+    churchgate_st = session.execute(select(Station).where(Station.code == "CCG")).scalar_one()
+    clean_cat = session.execute(select(IssueCategory).where(IssueCategory.code == "platform_cleanliness")).scalar_one()
+    lift_cat = session.execute(select(IssueCategory).where(IssueCategory.code == "lifts_escalators")).scalar_one()
+    safety_cat = session.execute(select(IssueCategory).where(IssueCategory.code == "safety_security")).scalar_one()
 
-    now = datetime.now(timezone.utc)
-
-    issue1 = Issue(
+    # Issue 1: Bandra Overflowing Garbage (Reviewed by Station Admin)
+    i1 = Issue(
+        id=uuid.uuid4(),
         issue_number="RV-WR-2026-000101",
         zone_id=zone.id,
         division_id=division.id,
-        station_id=bandra.id,
-        creator_id=passenger.id,
-        category_id=cat_clean.id,
-        title="Overflowing dustbins and water leakage near FOB",
-        description="Garbage bins overflowing beside foot over bridge stairs on Bandra Platform 2.",
-        status="submitted",
+        station_id=bandra_st.id,
+        creator_id=commuter.id,
+        category_id=clean_cat.id,
+        title="Overflowing Waste Bins near Foot Overbridge on Platform 1",
+        description="Garbage bins near the north FOB on Platform 1 are overflowing since early morning, causing foul smell and blocking passenger movement during peak hours.",
+        status="action_started",
         severity=3,
-        support_count=18,
+        support_count=42,
         comment_count=1,
-        priority_score=82.5,
-        trending_score=4.2,
-        is_emergency=False,
-        is_public=True,
-        created_at=now - timedelta(hours=3),
-    )
-
-    issue2 = Issue(
-        issue_number="RV-WR-2026-000102",
-        zone_id=zone.id,
-        division_id=division.id,
-        station_id=andheri.id,
-        creator_id=passenger.id,
-        category_id=cat_infra.id,
-        title="Digital train indicator board flickering at main concourse",
-        description="The central overhead display board on Platform 3 is flickering and unreadable.",
-        status="verified",
-        severity=3,
-        support_count=9,
-        comment_count=1,
-        priority_score=74.0,
-        trending_score=2.8,
         is_emergency=False,
         is_public=True,
         created_at=now - timedelta(hours=6),
+        updated_at=now - timedelta(hours=1),
     )
+    session.add(i1)
 
-    issue3 = Issue(
+    # Issue 2: Andheri Escalator Malfunction (Escalated to Division)
+    i2 = Issue(
+        id=uuid.uuid4(),
+        issue_number="RV-WR-2026-000102",
+        zone_id=zone.id,
+        division_id=division.id,
+        station_id=andheri_st.id,
+        creator_id=commuter.id,
+        category_id=lift_cat.id,
+        title="Escalator Stopped on Platform 4/5 West Exit",
+        description="The upward escalator on Platform 4/5 connecting to the west skywalk has abruptly stopped. Senior citizens and passengers with heavy luggage are facing immense difficulty.",
+        status="forwarded_division",
+        severity=4,
+        support_count=89,
+        comment_count=1,
+        is_emergency=False,
+        is_public=True,
+        created_at=now - timedelta(hours=18),
+        updated_at=now - timedelta(hours=2),
+    )
+    session.add(i2)
+
+    # Issue 3: Churchgate Emergency Warning (High Upvotes / Emergency Flag)
+    i3 = Issue(
+        id=uuid.uuid4(),
         issue_number="RV-WR-2026-000103",
         zone_id=zone.id,
         division_id=division.id,
-        station_id=churchgate.id,
-        creator_id=passenger.id,
-        category_id=cat_safety.id,
-        title="Emergency SOS help booth light malfunctioning",
-        description="The SOS station alert indicator lamp is dim and unresponsive on Platform 1.",
-        status="action_started",
+        station_id=churchgate_st.id,
+        creator_id=commuter.id,
+        category_id=safety_cat.id,
+        title="Platform Edge Paver Tiles Broken & Loose at Coach 4 Stopping Mark",
+        description="Broken tactiles and sharp dislodged paver blocks along platform edge 2. High tripping hazard during morning rush hour rush when alighting from local trains.",
+        status="verified",
         severity=5,
-        support_count=32,
+        support_count=124,
         comment_count=1,
-        priority_score=95.0,
-        trending_score=8.5,
         is_emergency=True,
         is_public=True,
-        created_at=now - timedelta(hours=1),
+        created_at=now - timedelta(days=1),
+        updated_at=now - timedelta(hours=3),
     )
-
-    session.add_all([issue1, issue2, issue3])
+    session.add(i3)
     session.flush()
 
-    # 10. Seed exactly 3 Comments
-    c1 = Comment(
-        issue_id=issue1.id,
-        user_id=station_admin.id,
-        body="Station housekeeping supervisor notified. Plumber and cleaning crew assigned.",
-        created_at=now - timedelta(hours=2),
-    )
-    c2 = Comment(
-        issue_id=issue2.id,
-        user_id=main_admin.id,
-        body="Electrical engineering team inspected the display controller on site.",
-        created_at=now - timedelta(hours=4),
-    )
-    c3 = Comment(
-        issue_id=issue3.id,
-        user_id=station_admin.id,
-        body="RPF duty officer tested beacon wiring. Resolution underway.",
-        created_at=now - timedelta(minutes=30),
-    )
-    session.add_all([c1, c2, c3])
+    # Supports & Timeline Events for the 3 Issues
+    for iss in [i1, i2, i3]:
+        session.add(IssueSupport(issue_id=iss.id, user_id=commuter.id, created_at=iss.created_at))
+        session.add(
+            IssueTimelineEvent(
+                issue_id=iss.id,
+                event_type="submitted",
+                from_status=None,
+                to_status="submitted",
+                actor_id=commuter.id,
+                remarks="Problem submitted by citizen.",
+                visibility="public",
+                created_at=iss.created_at,
+            )
+        )
 
-    # 11. Seed exactly 3 Timeline Events
-    t1 = IssueTimelineEvent(
-        issue_id=issue1.id,
-        event_type="created",
-        to_status="submitted",
-        actor_id=passenger.id,
-        actor_role="passenger",
-        remarks="Grievance submitted by commuter.",
-        created_at=now - timedelta(hours=3),
+    # Timeline event for Bandra issue
+    session.add(
+        IssueTimelineEvent(
+            issue_id=i1.id,
+            event_type="status_change",
+            from_status="submitted",
+            to_status="action_started",
+            actor_id=station_admin.id,
+            remarks="Sanitation supervisor assigned. Cleaning in progress.",
+            visibility="public",
+            created_at=now - timedelta(hours=1),
+        )
     )
-    t2 = IssueTimelineEvent(
-        issue_id=issue2.id,
-        event_type="status_change",
-        from_status="submitted",
-        to_status="verified",
-        actor_id=station_admin.id,
-        actor_role="station_manager",
-        remarks="Verified by Station Duty Officer.",
-        created_at=now - timedelta(hours=5),
-    )
-    t3 = IssueTimelineEvent(
-        issue_id=issue3.id,
-        event_type="status_change",
-        from_status="verified",
-        to_status="action_started",
-        actor_id=main_admin.id,
-        actor_role="super_admin",
-        remarks="Emergency inspection dispatched.",
-        created_at=now - timedelta(minutes=45),
-    )
-    session.add_all([t1, t2, t3])
 
-    # 12. Seed exactly 3 Emergency Alerts
-    e1 = EmergencyAlert(
-        station_id=bandra.id,
-        issuer_id=main_admin.id,
-        severity="critical",
-        title="Platform 1 Overhead Maintenance",
-        message="Caution: Platform 1 track safety inspection active. Please use FOB for Platform 2.",
-        is_active=True,
-        expires_at=now + timedelta(hours=24),
+    # Timeline event for Andheri escalated issue
+    session.add(
+        IssueTimelineEvent(
+            issue_id=i2.id,
+            event_type="escalated",
+            from_status="verified",
+            to_status="forwarded_division",
+            actor_id=station_admin.id,
+            remarks="Escalated to Mumbai Divisional Electrical Engineering team for motor inspection.",
+            visibility="public",
+            created_at=now - timedelta(hours=2),
+        )
     )
-    e2 = EmergencyAlert(
-        station_id=andheri.id,
-        issuer_id=station_admin.id,
-        severity="warning",
-        title="Escalator 2 Maintenance at Andheri West",
-        message="Escalator undergoing scheduled overhaul. Lifts are fully operational.",
-        is_active=True,
-        expires_at=now + timedelta(hours=12),
-    )
-    e3 = EmergencyAlert(
-        station_id=churchgate.id,
-        issuer_id=main_admin.id,
-        severity="info",
-        title="Corridor Fast Local Schedule",
-        message="Peak hour fast suburban services running on regular timetable.",
-        is_active=True,
-        expires_at=now + timedelta(hours=8),
-    )
-    session.add_all([e1, e2, e3])
 
-    # 13. Seed exactly 3 Workforce Staff Members
-    w1 = WorkforceStaff(
-        full_name="Rajesh Sharma",
-        skill_category="electrical",
-        contact_number="+919876000001",
-        assigned_station_id=andheri.id,
-        status="available",
-        shift_start="08:00",
-        shift_end="16:00",
-        is_active=True,
+    # Comments
+    session.add(
+        Comment(
+            issue_id=i1.id,
+            user_id=commuter.id,
+            body="Thank you for taking action on Platform 1 garbage so quickly!",
+            created_at=now - timedelta(minutes=45),
+        )
     )
-    w2 = WorkforceStaff(
-        full_name="Sunil Patil",
-        skill_category="housekeeping",
-        contact_number="+919876000002",
-        assigned_station_id=bandra.id,
-        status="available",
-        shift_start="06:00",
-        shift_end="14:00",
-        is_active=True,
+    session.add(
+        Comment(
+            issue_id=i2.id,
+            user_id=commuter.id,
+            body="Huge crowd backing up at Andheri west exit. Please repair this ASAP.",
+            created_at=now - timedelta(hours=5),
+        )
     )
-    w3 = WorkforceStaff(
-        full_name="Inspector Vikram Singh",
-        skill_category="safety",
-        contact_number="+919876000003",
-        assigned_station_id=churchgate.id,
-        status="available",
-        shift_start="14:00",
-        shift_end="22:00",
-        is_active=True,
+    session.add(
+        Comment(
+            issue_id=i3.id,
+            user_id=station_admin.id,
+            body="Inspected on morning rounds. Barricade placed around the damaged edge.",
+            created_at=now - timedelta(hours=2),
+        )
     )
-    session.add_all([w1, w2, w3])
 
-    # 14. Seed exactly 3 Vendor Contracts
-    v1 = VendorContract(
-        vendor_name="CleanRail Facility Services Pvt Ltd",
-        contract_code="VND-WR-001",
-        station_id=bandra.id,
-        category_id=cat_clean.id,
-        penalty_per_sla_hour=500.0,
-        max_penalty_cap=50000.0,
-        is_active=True,
+    # Notifications
+    session.add(
+        Notification(
+            user_id=commuter.id,
+            type="status_change",
+            title="Bandra Issue In Progress",
+            body="Your reported issue RV-WR-2026-000101 is now under active resolution.",
+            issue_id=i1.id,
+            is_read=False,
+            created_at=now - timedelta(hours=1),
+        )
     )
-    v2 = VendorContract(
-        vendor_name="Sparkline Electricals & Infrastructure",
-        contract_code="VND-WR-002",
-        station_id=andheri.id,
-        category_id=cat_infra.id,
-        penalty_per_sla_hour=1000.0,
-        max_penalty_cap=100000.0,
-        is_active=True,
+    session.add(
+        Notification(
+            user_id=main_admin.id,
+            type="station_report",
+            title="Escalated Issue from Andheri",
+            body="Issue RV-WR-2026-000102 has been escalated to Division for electrical repair.",
+            issue_id=i2.id,
+            is_read=False,
+            created_at=now - timedelta(hours=2),
+        )
     )
-    v3 = VendorContract(
-        vendor_name="Apex Safety Systems & Security Tech",
-        contract_code="VND-WR-003",
-        station_id=churchgate.id,
-        category_id=cat_safety.id,
-        penalty_per_sla_hour=1500.0,
-        max_penalty_cap=150000.0,
-        is_active=True,
-    )
-    session.add_all([v1, v2, v3])
-    session.flush()
-
-    # 15. Seed exactly 3 Vendor Penalty Notes
-    p1 = VendorPenaltyNote(
-        contract_id=v1.id,
-        issue_id=issue1.id,
-        penalty_amount=2500.0,
-        clause_reference="SLA Cl. 4.2 - Delay in waste clearance beyond SLA target",
-        status="pending_review",
-    )
-    p2 = VendorPenaltyNote(
-        contract_id=v2.id,
-        issue_id=issue2.id,
-        penalty_amount=4000.0,
-        clause_reference="SLA Cl. 6.1 - Unscheduled display unit downtime",
-        status="approved",
-    )
-    p3 = VendorPenaltyNote(
-        contract_id=v3.id,
-        issue_id=issue3.id,
-        penalty_amount=6000.0,
-        clause_reference="SLA Cl. 8.3 - Safety beacon inspection SLA breach",
-        status="pending_review",
-    )
-    session.add_all([p1, p2, p3])
-
-    # 16. Seed exactly 3 User Reputation Records (Leaderboard)
-    r1 = UserReputation(
-        user_id=main_admin.id,
-        points=450,
-        tier="platinum",
-        badge_slugs=["civic_champion", "speed_resolver", "verified_hero"],
-        reports_count=15,
-        verifications_count=12,
-    )
-    r2 = UserReputation(
-        user_id=station_admin.id,
-        points=280,
-        tier="gold",
-        badge_slugs=["civic_champion", "speed_resolver"],
-        reports_count=9,
-        verifications_count=8,
-    )
-    r3 = UserReputation(
-        user_id=passenger.id,
-        points=120,
-        tier="silver",
-        badge_slugs=["first_reporter"],
-        reports_count=3,
-        verifications_count=2,
-    )
-    session.add_all([r1, r2, r3])
-
-    # 17. Seed exactly 3 Notifications
-    n1 = Notification(
-        user_id=main_admin.id,
-        type="system",
-        title="Corridor AI Summary Ready",
-        body="Daily Western Railway corridor AI analytics pack is ready for review.",
-        is_read=False,
-    )
-    n2 = Notification(
-        user_id=station_admin.id,
-        type="assignment",
-        title="New Grievance at Bandra",
-        body="Report RV-WR-2026-000101 assigned to Bandra station queue.",
-        issue_id=issue1.id,
-        is_read=False,
-    )
-    n3 = Notification(
-        user_id=passenger.id,
-        type="status_update",
-        title="Grievance Verified",
-        body="Your issue RV-WR-2026-000101 has been verified by the station duty officer.",
-        issue_id=issue1.id,
-        is_read=True,
-    )
-    session.add_all([n1, n2, n3])
 
     session.commit()
-    print("Clean 3-entry database seeding completed successfully!")
-
-
-def main() -> None:
-    engine = create_engine(settings.database_url_sync)
-    with Session(engine) as session:
-        seed(session)
+    print("Clean RailVoice database seed completed successfully!")
 
 
 if __name__ == "__main__":
-    main()
+    engine = create_engine(settings.database_url_sync)
+    with Session(engine) as session:
+        seed(session)
