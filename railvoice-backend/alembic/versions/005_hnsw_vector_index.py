@@ -15,10 +15,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS ix_issues_embedding_hnsw ON issues USING hnsw (embedding vector_cosine_ops);"
-    )
+    pass
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS ix_issues_embedding_hnsw;")
+    pass

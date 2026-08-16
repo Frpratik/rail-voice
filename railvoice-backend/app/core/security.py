@@ -26,6 +26,13 @@ def create_refresh_token_value() -> str:
     return secrets.token_urlsafe(48)
 
 
+def create_refresh_token(user_id: uuid.UUID | str | None = None) -> tuple[str, str, datetime]:
+    raw_token = create_refresh_token_value()
+    token_hash = hash_value(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+    return raw_token, token_hash, expires_at
+
+
 def decode_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
 

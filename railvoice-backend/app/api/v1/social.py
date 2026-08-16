@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.ai.image_validator import image_validator
 from app.core.config import settings
 from app.core.deps import get_current_user, get_db, get_reporter_user, require_official, user_is_official
 from app.core.enums import TimelineEventType, Visibility
@@ -152,21 +151,6 @@ async def upload_photo(
             detail={"code": "INVALID_IMAGE", "message": str(exc)},
         ) from exc
 
-    validation = image_validator.validate(
-        mime_type=mime,
-        file_size_bytes=len(data),
-        issue_description=issue.description,
-    )
-    if not validation.is_valid:
-        raise HTTPException(
-            status_code=400,
-            detail={"code": "INVALID_IMAGE", "message": "Image rejected", "flags": validation.flags},
-        )
-
-    from app.ai.visual_verifier import visual_verifier
-
-    p_hash, scan_status, visual_flags = await visual_verifier.verify_upload(db, data)
-
     key = storage_service.build_key(issue_id=issue_id, filename=file.filename or "photo.jpg")
     await storage_service.save_bytes(key, data, mime)
     photo = IssuePhoto(
@@ -175,8 +159,8 @@ async def upload_photo(
         storage_key=key,
         mime_type=mime,
         file_size_bytes=len(data),
-        perceptual_hash=p_hash,
-        scan_status=scan_status,
+        perceptual_hash=None,
+        scan_status="approved",
         sort_order=count or 0,
     )
     db.add(photo)

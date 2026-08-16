@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from typing import Annotated
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.ai.search import hybrid_search_service
 from app.core.deps import get_db
 from app.models.issue import Issue
 from app.schemas.common import Envelope, Meta
@@ -25,32 +23,40 @@ async def text_search(
     station_id: uuid.UUID | None = None,
     limit: int = Query(20, ge=1, le=50),
 ) -> Envelope[dict]:
-    results = await hybrid_search_service.search(
-        db, q, station_id=station_id, limit=limit
-    )
-    if not results:
-        return Envelope(data={"results": []}, meta=Meta())
+    pattern = f"%{q.strip()}%"
+    conditions = [
+        Issue.is_public.is_(True),
+        or_(
+            Issue.title.ilike(pattern),
+            Issue.description.ilike(pattern),
+            Issue.issue_number.ilike(pattern),
+        ),
+    ]
+    if station_id:
+        conditions.append(Issue.station_id == station_id)
 
-    issue_ids = [uuid.UUID(r.issue_id) for r in results]
-    issues_result = await db.execute(
+    query = (
         select(Issue)
-        .options(selectinload(Issue.station), selectinload(Issue.category))
-        .where(Issue.id.in_(issue_ids))
+        .options(
+            selectinload(Issue.station),
+            selectinload(Issue.category),
+            selectinload(Issue.creator),
+            selectinload(Issue.photos),
+        )
+        .where(*conditions)
+        .order_by(Issue.created_at.desc())
+        .limit(limit)
     )
-    issue_map = {i.id: i for i in issues_result.scalars().all()}
+    issues = (await db.execute(query)).scalars().all()
 
-    payload = []
-    for r in results:
-        issue = issue_map.get(uuid.UUID(r.issue_id))
-        if issue:
-            payload.append(
-                {
-                    "issue": issue_to_out(issue).model_dump(mode="json"),
-                    "relevance_score": r.relevance_score,
-                    "match_type": r.match_type,
-                }
-            )
-
+    payload = [
+        {
+            "issue": issue_to_out(i).model_dump(mode="json"),
+            "relevance_score": 1.0,
+            "match_type": "text",
+        }
+        for i in issues
+    ]
     return Envelope(data={"results": payload}, meta=Meta())
 
 
@@ -59,12 +65,8 @@ async def semantic_search(
     db: Annotated[AsyncSession, Depends(get_db)],
     body: dict,
 ) -> Envelope[dict]:
-    query = body.get("query", "")
+    q = body.get("query", "")
     station_id = body.get("station_id")
     limit = min(int(body.get("limit", 20)), 50)
     sid = uuid.UUID(station_id) if station_id else None
-    results = await hybrid_search_service.search(db, query, station_id=sid, limit=limit)
-    return Envelope(
-        data={"results": [r.__dict__ for r in results]},
-        meta=Meta(),
-    )
+    return await text_search(db=db, q=q, station_id=sid, limit=limit)

@@ -39,6 +39,8 @@ class Issue(Base):
     severity: Mapped[int] = mapped_column(Integer, default=3)
     support_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
+    priority_score: Mapped[float] = mapped_column(Numeric(8, 2), default=0.0)
+    trending_score: Mapped[float] = mapped_column(Numeric(8, 4), default=0.0)
     is_emergency: Mapped[bool] = mapped_column(Boolean, default=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True)
     train_number: Mapped[str | None] = mapped_column(String(10))

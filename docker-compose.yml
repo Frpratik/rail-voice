@@ -34,18 +34,18 @@ services:
       context: ./railvoice-backend
       dockerfile: Dockerfile
     container_name: railvoice-api
-    env_file:
-      - ./railvoice-backend/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://railvoice:railvoice@postgres:5432/railvoice
       DATABASE_URL_SYNC: postgresql://railvoice:railvoice@postgres:5432/railvoice
       REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001
       PUBLIC_BASE_URL: http://localhost:8000
       LOCAL_STORAGE_PATH: storage/uploads
       GOOGLE_OAUTH_MOCK_MODE: "true"
+      OTP_MOCK_MODE: "true"
+      APP_ENV: development
+      DEBUG: "true"
+      SECRET_KEY: "railvoice-secret-key-development"
     ports:
       - "8000:8000"
     depends_on:
@@ -60,46 +60,21 @@ services:
              python -m app.scripts.seed &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
-  worker:
+  web:
     build:
-      context: ./railvoice-backend
+      context: ./railvoice-web
       dockerfile: Dockerfile
-    container_name: railvoice-worker
-    env_file:
-      - ./railvoice-backend/.env
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    container_name: railvoice-web
     environment:
-      DATABASE_URL: postgresql+asyncpg://railvoice:railvoice@postgres:5432/railvoice
-      DATABASE_URL_SYNC: postgresql://railvoice:railvoice@postgres:5432/railvoice
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      NODE_ENV: production
+      API_PROXY_TARGET: http://api:8000
+      PORT: 3000
+    ports:
+      - "3000:3000"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./railvoice-backend:/app
-    command: celery -A app.workers.celery_app worker --loglevel=info -Q high,default,low
-
-  beat:
-    build:
-      context: ./railvoice-backend
-      dockerfile: Dockerfile
-    container_name: railvoice-beat
-    env_file:
-      - ./railvoice-backend/.env
-    environment:
-      DATABASE_URL: postgresql+asyncpg://railvoice:railvoice@postgres:5432/railvoice
-      DATABASE_URL_SYNC: postgresql://railvoice:railvoice@postgres:5432/railvoice
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
-    depends_on:
-      - redis
-      - worker
-    volumes:
-      - ./railvoice-backend:/app
-    command: celery -A app.workers.celery_app beat --loglevel=info
+      - api
 
 volumes:
   postgres_data:

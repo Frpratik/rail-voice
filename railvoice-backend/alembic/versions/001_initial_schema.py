@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from pgvector.sqlalchemy import Vector
+
 
 revision: str = "001"
 down_revision: Union[str, None] = None
@@ -18,8 +18,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-
     op.create_table(
         "zones",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -197,7 +195,7 @@ def upgrade() -> None:
         sa.Column("subcategory_id", sa.UUID(), nullable=True),
         sa.Column("title", sa.String(length=200), nullable=True),
         sa.Column("description", sa.Text(), nullable=False),
-        sa.Column("embedding", Vector(1536), nullable=True),
+        sa.Column("embedding", sa.Text(), nullable=True),
         sa.Column("embedding_model", sa.String(length=50), nullable=True),
         sa.Column("status", sa.String(length=50), nullable=False),
         sa.Column("severity", sa.Integer(), nullable=True),
@@ -233,13 +231,6 @@ def upgrade() -> None:
     )
     op.create_index("idx_issues_station_priority", "issues", ["station_id", "priority_score"])
     op.create_index("idx_issues_created_at", "issues", ["created_at"])
-    op.execute(
-        """
-        CREATE INDEX idx_issues_embedding_hnsw ON issues
-        USING hnsw (embedding vector_cosine_ops)
-        WITH (m = 16, ef_construction = 64)
-        """
-    )
     op.create_table(
         "comments",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -307,7 +298,6 @@ def downgrade() -> None:
     op.drop_table("issue_supports")
     op.drop_table("issue_photos")
     op.drop_table("comments")
-    op.drop_index("idx_issues_embedding_hnsw", table_name="issues")
     op.drop_table("issues")
     op.drop_table("platforms")
     op.drop_table("user_roles")

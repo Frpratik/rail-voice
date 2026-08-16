@@ -1,4 +1,4 @@
-"""Seed Western Railway corridor data with clean core entities for RailVoice."""
+"""Seed Western Railway corridor data with clean demo entities for RailVoice."""
 
 from __future__ import annotations
 
@@ -18,8 +18,29 @@ from app.models.issue import (
     IssueTimelineEvent,
     SystemConfig,
 )
-from app.models.user import Role, User, UserRole, Notification
-from app.models.location import Division, IssueCategory, Station, Zone
+from app.models.user import (
+    AuthAuditEvent,
+    Notification,
+    OtpRequest,
+    RefreshToken,
+    Role,
+    User,
+    UserManagementAudit,
+    UserRole,
+)
+from app.models.location import Division, IssueCategory, Platform, Station, Zone
+
+ZONES = [
+    ("WR", "Western Railway", "IN"),
+    ("CR", "Central Railway", "IN"),
+    ("NR", "Northern Railway", "IN"),
+]
+
+DIVISIONS = [
+    ("WR", "MUM", "Mumbai"),
+    ("WR", "BRC", "Vadodara"),
+    ("WR", "ADI", "Ahmedabad"),
+]
 
 STATIONS = [
     (1, "CCG", "Churchgate", 18.9322, 72.8265),
@@ -82,32 +103,60 @@ CATEGORIES = [
 
 
 def seed(session: Session) -> None:
-    # 1. Zone & Division
-    zone = session.execute(select(Zone).where(Zone.code == "WR")).scalar_one_or_none()
-    if not zone:
-        zone = Zone(code="WR", name="Western Railway", country_code="IN")
-        session.add(zone)
-        session.flush()
+    print("[seed] Clearing all existing data from tables...")
+    # Clean tables in reverse dependency order
+    session.execute(delete(Comment))
+    session.execute(delete(IssuePhoto))
+    session.execute(delete(IssueSupport))
+    session.execute(delete(IssueTimelineEvent))
+    session.execute(delete(Issue))
+    session.execute(delete(Notification))
+    session.execute(delete(RefreshToken))
+    session.execute(delete(OtpRequest))
+    session.execute(delete(AuthAuditEvent))
+    session.execute(delete(UserManagementAudit))
+    session.execute(delete(UserRole))
+    session.execute(delete(User))
+    session.execute(delete(Platform))
+    session.execute(delete(Station))
+    session.execute(delete(IssueCategory))
+    session.execute(delete(Role))
+    session.execute(delete(Division))
+    session.execute(delete(Zone))
+    session.flush()
 
-    division = session.execute(select(Division).where(Division.code == "MUM")).scalar_one_or_none()
-    if not division:
-        division = Division(zone_id=zone.id, code="MUM", name="Mumbai")
-        session.add(division)
-        session.flush()
+    # 1. 3 Zones
+    print("[seed] Seeding 3 Zones...")
+    zone_map: dict[str, Zone] = {}
+    for code, name, country in ZONES:
+        z = Zone(code=code, name=name, country_code=country)
+        session.add(z)
+        zone_map[code] = z
+    session.flush()
 
-    # 2. Roles
+    # 2. 3 Divisions
+    print("[seed] Seeding 3 Divisions...")
+    div_map: dict[str, Division] = {}
+    for z_code, d_code, d_name in DIVISIONS:
+        d = Division(zone_id=zone_map[z_code].id, code=d_code, name=d_name)
+        session.add(d)
+        div_map[d_code] = d
+    session.flush()
+
+    # 3. Roles
+    print("[seed] Seeding Roles...")
+    role_map: dict[str, Role] = {}
     for code, name, level in ROLES:
-        if not session.execute(select(Role).where(Role.code == code)).scalar_one_or_none():
-            session.add(Role(code=code, name=name, level=level))
+        r = Role(code=code, name=name, level=level)
+        session.add(r)
+        role_map[code] = r
+    session.flush()
 
-    # 3. Categories
-    parent_ids: dict[str, uuid.UUID] = {}
+    # 4. Categories
+    print("[seed] Seeding Categories...")
+    cat_map: dict[str, IssueCategory] = {}
     for code, name, parent_code, icon, severity in CATEGORIES:
-        existing_cat = session.execute(select(IssueCategory).where(IssueCategory.code == code)).scalar_one_or_none()
-        if existing_cat:
-            parent_ids[code] = existing_cat.id
-            continue
-        parent_id = parent_ids.get(parent_code) if parent_code else None
+        parent_id = cat_map[parent_code].id if parent_code and parent_code in cat_map else None
         cat = IssueCategory(
             code=code,
             name=name,
@@ -117,178 +166,157 @@ def seed(session: Session) -> None:
         )
         session.add(cat)
         session.flush()
-        parent_ids[code] = cat.id
+        cat_map[code] = cat
 
-    # 4. Stations
+    # 5. Stations (Churchgate to Virar)
+    print("[seed] Seeding 28 Corridor Stations...")
+    st_map: dict[str, Station] = {}
+    mum_div = div_map["MUM"]
+    wr_zone = zone_map["WR"]
     for seq, code, name, lat, lng in STATIONS:
-        exists = session.execute(select(Station).where(Station.code == code)).scalar_one_or_none()
-        if not exists:
-            session.add(
-                Station(
-                    division_id=division.id,
-                    zone_id=zone.id,
-                    code=code,
-                    name=name,
-                    sequence_order=seq,
-                    latitude=lat,
-                    longitude=lng,
-                )
-            )
+        st = Station(
+            division_id=mum_div.id,
+            zone_id=wr_zone.id,
+            code=code,
+            name=name,
+            sequence_order=seq,
+            latitude=lat,
+            longitude=lng,
+        )
+        session.add(st)
+        st_map[code] = st
     session.flush()
 
-    # 5. Reset dynamic operational tables for a clean slate
-    session.execute(delete(Comment))
-    session.execute(delete(IssuePhoto))
-    session.execute(delete(IssueSupport))
-    session.execute(delete(IssueTimelineEvent))
-    session.execute(delete(Issue))
-    session.execute(delete(Notification))
+    # 6. 3 Platforms for demo
+    print("[seed] Seeding 3 Demo Platforms...")
+    p1 = Platform(station_id=st_map["BA"].id, platform_number=1, name="Platform 1 (Slow / Up)")
+    p2 = Platform(station_id=st_map["ADH"].id, platform_number=4, name="Platform 4 (Fast / Down)")
+    p3 = Platform(station_id=st_map["CCG"].id, platform_number=2, name="Platform 2 (Terminal)")
+    session.add_all([p1, p2, p3])
     session.flush()
 
-    # 6. Seed 3 Product Personas
+    # 7. 3 Demo Personas (Users)
+    print("[seed] Seeding 3 Demo Personas...")
     now = datetime.now(timezone.utc)
-    super_admin_role = session.execute(select(Role).where(Role.code == "super_admin")).scalar_one()
-    manager_role = session.execute(select(Role).where(Role.code == "station_manager")).scalar_one()
-    passenger_role = session.execute(select(Role).where(Role.code == "passenger")).scalar_one()
 
-    # Persona A: Western Railway Main Authority
-    main_admin = session.execute(select(User).where(User.mobile_hash == hash_value("+919999999999"))).scalar_one_or_none()
-    if not main_admin:
-        main_admin = User(
-            mobile_hash=hash_value("+919999999999"),
-            mobile_masked="+91******9999",
-            display_name="Western Railway Main Admin",
-            is_verified=True,
-            is_active=True,
-        )
-        session.add(main_admin)
-        session.flush()
-    session.execute(delete(UserRole).where(UserRole.user_id == main_admin.id))
-    session.add(UserRole(user_id=main_admin.id, role_id=super_admin_role.id, scope_type="global", scope_id=None))
-
+    # Persona A: Western Railway Main Authority / Super Admin
+    main_admin = User(
+        mobile_hash=hash_value("+919999999999"),
+        mobile_last4="9999",
+        display_name="Western Railway Main Admin",
+        is_verified=True,
+        is_active=True,
+    )
     # Persona B: Bandra Station Admin
-    bandra_st = session.execute(select(Station).where(Station.code == "BA")).scalar_one()
-    station_admin = session.execute(select(User).where(User.mobile_hash == hash_value("+919888888888"))).scalar_one_or_none()
-    if not station_admin:
-        station_admin = User(
-            mobile_hash=hash_value("+919888888888"),
-            mobile_masked="+91******8888",
-            display_name="Bandra Station Admin",
-            is_verified=True,
-            is_active=True,
-        )
-        session.add(station_admin)
-        session.flush()
-    session.execute(delete(UserRole).where(UserRole.user_id == station_admin.id))
-    session.add(UserRole(user_id=station_admin.id, role_id=manager_role.id, scope_type="station", scope_id=bandra_st.id))
-
-    # Persona C: Daily Commuter
-    commuter = session.execute(select(User).where(User.mobile_hash == hash_value("+919111111111"))).scalar_one_or_none()
-    if not commuter:
-        commuter = User(
-            mobile_hash=hash_value("+919111111111"),
-            mobile_masked="+91******1111",
-            display_name="Rajesh Sharma (Commuter)",
-            is_verified=True,
-            is_active=True,
-        )
-        session.add(commuter)
-        session.flush()
-    session.execute(delete(UserRole).where(UserRole.user_id == commuter.id))
-    session.add(UserRole(user_id=commuter.id, role_id=passenger_role.id, scope_type="global", scope_id=None))
+    station_admin = User(
+        mobile_hash=hash_value("+919888888888"),
+        mobile_last4="8888",
+        display_name="Bandra Station Admin",
+        assigned_station_id=st_map["BA"].id,
+        is_verified=True,
+        is_active=True,
+    )
+    # Persona C: Daily Commuter Passenger
+    commuter = User(
+        mobile_hash=hash_value("+919111111111"),
+        mobile_last4="1111",
+        display_name="Rajesh Sharma (Commuter)",
+        is_verified=True,
+        is_active=True,
+    )
+    session.add_all([main_admin, station_admin, commuter])
     session.flush()
 
-    # 7. Seed 3 Core Test Issues
-    andheri_st = session.execute(select(Station).where(Station.code == "ADH")).scalar_one()
-    churchgate_st = session.execute(select(Station).where(Station.code == "CCG")).scalar_one()
-    clean_cat = session.execute(select(IssueCategory).where(IssueCategory.code == "platform_cleanliness")).scalar_one()
-    lift_cat = session.execute(select(IssueCategory).where(IssueCategory.code == "lifts_escalators")).scalar_one()
-    safety_cat = session.execute(select(IssueCategory).where(IssueCategory.code == "safety_security")).scalar_one()
+    # User Roles
+    session.add(UserRole(user_id=main_admin.id, role_id=role_map["super_admin"].id, location_type=None, location_id=None))
+    session.add(UserRole(user_id=station_admin.id, role_id=role_map["station_manager"].id, location_type="station", location_id=st_map["BA"].id))
+    session.add(UserRole(user_id=commuter.id, role_id=role_map["passenger"].id, location_type=None, location_id=None))
+    session.flush()
 
-    # Issue 1: Bandra Overflowing Garbage (Reviewed by Station Admin)
+    # 8. 3 Demo Issues
+    print("[seed] Seeding 3 Core Demo Issues...")
+    # Issue 1: Bandra Waste Overflow (Reviewed & Action Started)
     i1 = Issue(
         id=uuid.uuid4(),
         issue_number="RV-WR-2026-000101",
-        zone_id=zone.id,
-        division_id=division.id,
-        station_id=bandra_st.id,
+        zone_id=wr_zone.id,
+        division_id=mum_div.id,
+        station_id=st_map["BA"].id,
+        platform_id=p1.id,
         creator_id=commuter.id,
-        category_id=clean_cat.id,
+        category_id=cat_map["platform_cleanliness"].id,
         title="Overflowing Waste Bins near Foot Overbridge on Platform 1",
         description="Garbage bins near the north FOB on Platform 1 are overflowing since early morning, causing foul smell and blocking passenger movement during peak hours.",
         status="action_started",
         severity=3,
         support_count=42,
         comment_count=1,
+        priority_score=45.50,
+        trending_score=3.2000,
         is_emergency=False,
         is_public=True,
         created_at=now - timedelta(hours=6),
         updated_at=now - timedelta(hours=1),
     )
-    session.add(i1)
 
-    # Issue 2: Andheri Escalator Malfunction (Escalated to Division)
+    # Issue 2: Andheri Escalator Stoppage (Escalated to Division)
     i2 = Issue(
         id=uuid.uuid4(),
         issue_number="RV-WR-2026-000102",
-        zone_id=zone.id,
-        division_id=division.id,
-        station_id=andheri_st.id,
+        zone_id=wr_zone.id,
+        division_id=mum_div.id,
+        station_id=st_map["ADH"].id,
+        platform_id=p2.id,
         creator_id=commuter.id,
-        category_id=lift_cat.id,
+        category_id=cat_map["lifts_escalators"].id,
         title="Escalator Stopped on Platform 4/5 West Exit",
         description="The upward escalator on Platform 4/5 connecting to the west skywalk has abruptly stopped. Senior citizens and passengers with heavy luggage are facing immense difficulty.",
         status="forwarded_division",
         severity=4,
         support_count=89,
         comment_count=1,
+        priority_score=78.25,
+        trending_score=5.8000,
         is_emergency=False,
         is_public=True,
         created_at=now - timedelta(hours=18),
         updated_at=now - timedelta(hours=2),
     )
-    session.add(i2)
 
-    # Issue 3: Churchgate Emergency Warning (High Upvotes / Emergency Flag)
+    # Issue 3: Churchgate Loose Paver Hazard (Verified / Urgent Safety Hazard)
     i3 = Issue(
         id=uuid.uuid4(),
         issue_number="RV-WR-2026-000103",
-        zone_id=zone.id,
-        division_id=division.id,
-        station_id=churchgate_st.id,
+        zone_id=wr_zone.id,
+        division_id=mum_div.id,
+        station_id=st_map["CCG"].id,
+        platform_id=p3.id,
         creator_id=commuter.id,
-        category_id=safety_cat.id,
+        category_id=cat_map["safety_security"].id,
         title="Platform Edge Paver Tiles Broken & Loose at Coach 4 Stopping Mark",
         description="Broken tactiles and sharp dislodged paver blocks along platform edge 2. High tripping hazard during morning rush hour rush when alighting from local trains.",
         status="verified",
         severity=5,
         support_count=124,
         comment_count=1,
+        priority_score=96.00,
+        trending_score=9.4500,
         is_emergency=True,
         is_public=True,
         created_at=now - timedelta(days=1),
         updated_at=now - timedelta(hours=3),
     )
-    session.add(i3)
+    session.add_all([i1, i2, i3])
     session.flush()
 
-    # Supports & Timeline Events for the 3 Issues
-    for iss in [i1, i2, i3]:
-        session.add(IssueSupport(issue_id=iss.id, user_id=commuter.id, created_at=iss.created_at))
-        session.add(
-            IssueTimelineEvent(
-                issue_id=iss.id,
-                event_type="submitted",
-                from_status=None,
-                to_status="submitted",
-                actor_id=commuter.id,
-                remarks="Problem submitted by citizen.",
-                visibility="public",
-                created_at=iss.created_at,
-            )
-        )
+    # 9. 3 Upvote Supports
+    print("[seed] Seeding 3 Issue Supports...")
+    session.add(IssueSupport(issue_id=i1.id, user_id=commuter.id, created_at=i1.created_at))
+    session.add(IssueSupport(issue_id=i2.id, user_id=commuter.id, created_at=i2.created_at))
+    session.add(IssueSupport(issue_id=i3.id, user_id=commuter.id, created_at=i3.created_at))
 
-    # Timeline event for Bandra issue
+    # 10. 3 Timeline Progression Events
+    print("[seed] Seeding 3 Timeline Events...")
     session.add(
         IssueTimelineEvent(
             issue_id=i1.id,
@@ -301,8 +329,6 @@ def seed(session: Session) -> None:
             created_at=now - timedelta(hours=1),
         )
     )
-
-    # Timeline event for Andheri escalated issue
     session.add(
         IssueTimelineEvent(
             issue_id=i2.id,
@@ -315,8 +341,21 @@ def seed(session: Session) -> None:
             created_at=now - timedelta(hours=2),
         )
     )
+    session.add(
+        IssueTimelineEvent(
+            issue_id=i3.id,
+            event_type="submitted",
+            from_status=None,
+            to_status="submitted",
+            actor_id=commuter.id,
+            remarks="Grievance reported by passenger with urgent safety flag.",
+            visibility="public",
+            created_at=i3.created_at,
+        )
+    )
 
-    # Comments
+    # 11. 3 Comments
+    print("[seed] Seeding 3 Comments...")
     session.add(
         Comment(
             issue_id=i1.id,
@@ -337,12 +376,13 @@ def seed(session: Session) -> None:
         Comment(
             issue_id=i3.id,
             user_id=station_admin.id,
-            body="Inspected on morning rounds. Barricade placed around the damaged edge.",
+            body="Inspected on morning rounds. Caution barricade placed around the damaged edge.",
             created_at=now - timedelta(hours=2),
         )
     )
 
-    # Notifications
+    # 12. 3 Notifications
+    print("[seed] Seeding 3 Notifications...")
     session.add(
         Notification(
             user_id=commuter.id,
@@ -365,9 +405,20 @@ def seed(session: Session) -> None:
             created_at=now - timedelta(hours=2),
         )
     )
+    session.add(
+        Notification(
+            user_id=station_admin.id,
+            type="urgent_hazard",
+            title="Churchgate Paver Tile Alert",
+            body="Urgent passenger hazard reported on Platform 2 edge.",
+            issue_id=i3.id,
+            is_read=False,
+            created_at=now - timedelta(hours=3),
+        )
+    )
 
     session.commit()
-    print("Clean RailVoice database seed completed successfully!")
+    print("[seed] Complete: Clean RailVoice database seeded with 3 demo entries per domain table!")
 
 
 if __name__ == "__main__":

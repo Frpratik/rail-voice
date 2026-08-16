@@ -135,12 +135,10 @@ def upgrade() -> None:
                existing_type=postgresql.TIMESTAMP(timezone=True),
                nullable=False,
                existing_server_default=sa.text('now()'))
-    op.drop_index('idx_issues_created_at', table_name='issues')
-    op.drop_index('idx_issues_embedding_hnsw', table_name='issues', postgresql_with={'m': '16', 'ef_construction': '64'}, postgresql_using='hnsw')
-    op.drop_index('idx_issues_station_priority', table_name='issues')
-    op.drop_index('ix_issues_embedding_hnsw', table_name='issues', postgresql_using='hnsw')
-    op.drop_index('ix_issues_public_priority', table_name='issues')
-    op.drop_index('ix_issues_station_public_status', table_name='issues')
+    op.drop_index('idx_issues_created_at', table_name='issues', if_exists=True)
+    op.drop_index('idx_issues_station_priority', table_name='issues', if_exists=True)
+    op.drop_index('ix_issues_public_priority', table_name='issues', if_exists=True)
+    op.drop_index('ix_issues_station_public_status', table_name='issues', if_exists=True)
     op.alter_column('notifications', 'is_read',
                existing_type=sa.BOOLEAN(),
                nullable=False)
@@ -306,9 +304,7 @@ def downgrade() -> None:
                nullable=True)
     op.create_index('ix_issues_station_public_status', 'issues', ['station_id', 'is_public', 'status'], unique=False)
     op.create_index('ix_issues_public_priority', 'issues', ['is_public', 'priority_score'], unique=False)
-    op.create_index('ix_issues_embedding_hnsw', 'issues', ['embedding'], unique=False, postgresql_using='hnsw')
     op.create_index('idx_issues_station_priority', 'issues', ['station_id', 'priority_score'], unique=False)
-    op.create_index('idx_issues_embedding_hnsw', 'issues', ['embedding'], unique=False, postgresql_with={'m': '16', 'ef_construction': '64'}, postgresql_using='hnsw')
     op.create_index('idx_issues_created_at', 'issues', ['created_at'], unique=False)
     op.alter_column('issues', 'updated_at',
                existing_type=postgresql.TIMESTAMP(timezone=True),
