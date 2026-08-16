@@ -49,11 +49,11 @@ class User(Base):
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="noload")
+    roles: Mapped[list["UserRole"]] = relationship(back_populates="user", lazy="selectin")
     assigned_station: Mapped["Station | None"] = relationship(
         "Station",
         foreign_keys=[assigned_station_id],
-        lazy="noload",
+        lazy="selectin",
     )
     issues_created: Mapped[list["Issue"]] = relationship(
         back_populates="creator",
@@ -75,7 +75,7 @@ class UserRole(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(back_populates="roles", lazy="noload")
-    role: Mapped[Role] = relationship(lazy="noload")
+    role: Mapped[Role] = relationship(lazy="selectin")
 
 
 class RefreshToken(Base):

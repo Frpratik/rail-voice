@@ -35,12 +35,16 @@ def user_to_out(user: User) -> UserOut:
     from app.services.personas import persona_label, user_persona
 
     roles: list[str] = []
-    for user_role in _loaded_attr(user, "roles") or []:
-        if user_role.revoked_at is not None:
-            continue
-        role = _loaded_attr(user_role, "role")
-        if role is not None:
-            roles.append(role.code)
+    try:
+        user_roles = getattr(user, "roles", []) or []
+        for user_role in user_roles:
+            if getattr(user_role, "revoked_at", None) is not None:
+                continue
+            role = getattr(user_role, "role", None)
+            if role is not None and hasattr(role, "code"):
+                roles.append(role.code)
+    except Exception:
+        roles = []
     persona = user_persona(user) if roles or not user.is_anonymous else "passenger"
     return UserOut(
         id=user.id,
