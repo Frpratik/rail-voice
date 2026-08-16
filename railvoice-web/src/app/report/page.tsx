@@ -75,6 +75,7 @@ export default function ReportPage() {
     try {
       const res = await api.issues.create({
         station_id: stationId,
+        category_code: categoryCode,
         title: title.trim() || undefined,
         description: description.trim(),
         is_emergency: isEmergency,

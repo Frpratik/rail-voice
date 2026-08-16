@@ -48,7 +48,9 @@ export function IssueCard({
                 <AlertTriangle className="h-3 w-3" /> Urgent Hazard
               </Badge>
             )}
-            <Badge variant="muted">{issue.location.station.code || issue.location.station.name}</Badge>
+            <Badge variant="muted">
+              {issue.location?.station?.code || issue.location?.station?.name || "Western Railway"}
+            </Badge>
             {issue.category && (
               <Badge variant="outline">{issue.category.name}</Badge>
             )}

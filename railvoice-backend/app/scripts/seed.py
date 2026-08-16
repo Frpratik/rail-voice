@@ -105,12 +105,12 @@ CATEGORIES = [
 def seed(session: Session) -> None:
     print("[seed] Clearing all existing data from tables...")
     # Clean tables in reverse dependency order
+    session.execute(delete(Notification))
     session.execute(delete(Comment))
     session.execute(delete(IssuePhoto))
     session.execute(delete(IssueSupport))
     session.execute(delete(IssueTimelineEvent))
     session.execute(delete(Issue))
-    session.execute(delete(Notification))
     session.execute(delete(RefreshToken))
     session.execute(delete(OtpRequest))
     session.execute(delete(AuthAuditEvent))

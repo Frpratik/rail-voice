@@ -65,6 +65,7 @@ export function AppHeader() {
 
   const navItems = [
     { href: "/", label: "Feed" },
+    { href: "/stations", label: "Stations" },
     { href: "/my-issues", label: "My Issues" },
     { href: "/report", label: "Report Problem" },
     ...(official ? [{ href: "/admin/dashboard", label: "Admin Console" }] : []),

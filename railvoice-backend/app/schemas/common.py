@@ -118,6 +118,7 @@ class IssueCreateRequest(BaseModel):
     station_id: uuid.UUID
     title: str | None = Field(None, max_length=200)
     category_id: uuid.UUID | None = None
+    category_code: str | None = None
     platform_id: uuid.UUID | None = None
     train_number: str | None = Field(None, max_length=10)
     coach_number: str | None = Field(None, max_length=10)

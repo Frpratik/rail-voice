@@ -1,5 +1,6 @@
 import type {
   ApiEnvelope,
+  Category,
   Comment,
   DashboardData,
   Issue,
@@ -181,6 +182,10 @@ export const api = {
       apiFetch<ApiEnvelope<Station>>(`/stations/${code}`),
   },
 
+  categories: {
+    list: () => apiFetch<ApiEnvelope<Category[]>>("/categories"),
+  },
+
   auth: {
     requestOtp: (mobile: string) =>
       apiFetch<ApiEnvelope<{ message: string; mock_otp?: string }>>(
@@ -282,6 +287,7 @@ export const api = {
       station_id: string;
       title?: string;
       category_id?: string;
+      category_code?: string;
       platform_id?: string;
       train_number?: string;
       coach_number?: string;

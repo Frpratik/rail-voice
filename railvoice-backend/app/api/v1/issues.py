@@ -11,6 +11,7 @@ from app.models.issue import Issue
 from app.models.location import IssueCategory, Station, Zone
 from app.models.user import User
 from app.schemas.common import (
+    CategoryOut,
     Envelope,
     IssueCreateRequest,
     IssueDetailOut,
@@ -22,6 +23,17 @@ from app.schemas.mappers import issue_detail_to_out, issue_to_out, station_to_ou
 from app.services.issue_service import issue_service
 
 router = APIRouter(tags=["Issues", "Stations"])
+
+
+@router.get("/categories", response_model=Envelope[list[CategoryOut]])
+async def list_categories(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Envelope[list[CategoryOut]]:
+    result = await db.execute(
+        select(IssueCategory).where(IssueCategory.is_active.is_(True)).order_by(IssueCategory.sort_order)
+    )
+    categories = result.scalars().all()
+    return Envelope(data=[CategoryOut.model_validate(c) for c in categories], meta=Meta())
 
 
 @router.get("/stations", response_model=Envelope[list[StationOut]])
@@ -72,12 +84,21 @@ async def create_issue(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_reporter_user)],
 ) -> Envelope[dict]:
+    category_id = body.category_id
+    if not category_id and body.category_code:
+        cat_result = await db.execute(
+            select(IssueCategory).where(IssueCategory.code == body.category_code.lower())
+        )
+        found_cat = cat_result.scalar_one_or_none()
+        if found_cat:
+            category_id = found_cat.id
+
     try:
         issue = await issue_service.create_issue(
             db,
             creator=user,
             station_id=body.station_id,
-            category_id=body.category_id,
+            category_id=category_id,
             description=body.description,
             title=body.title,
             platform_id=body.platform_id,

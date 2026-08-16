@@ -187,6 +187,7 @@ async def list_notifications(
 
 
 @notifications_router.patch("/{notification_id}/read", response_model=Envelope[NotificationOut])
+@notifications_router.post("/{notification_id}/read", response_model=Envelope[NotificationOut])
 async def mark_notification_read(
     notification_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],

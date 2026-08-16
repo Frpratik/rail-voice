@@ -30,7 +30,7 @@ export default function StationPage() {
   return (
     <div className="space-y-8">
       <Link
-        href="/nearby"
+        href="/stations"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
