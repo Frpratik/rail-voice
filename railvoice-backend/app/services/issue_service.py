@@ -100,11 +100,11 @@ class AuthService:
         user = result.scalar_one_or_none()
         if user:
             return user
-        mask = f"{mobile[:2]}******{mobile[-2:]}" if len(mobile) >= 4 else "Commuter"
+        last4 = mobile[-4:] if len(mobile) >= 4 else "0000"
         user = User(
             mobile_hash=mobile_hash,
-            mobile_masked=mask,
-            display_name=f"Commuter {mobile[-4:]}" if len(mobile) >= 4 else "Commuter",
+            mobile_last4=last4,
+            display_name=f"Commuter {last4}",
             is_verified=True,
             is_active=True,
         )
@@ -133,7 +133,7 @@ class AuthService:
     async def issue_tokens(
         self, db: AsyncSession, user: User, *, family_id: uuid.UUID | None = None
     ) -> tuple[str, str, datetime]:
-        access_token = create_access_token(user.id)
+        access_token = create_access_token(str(user.id))
         raw_refresh, token_hash, expires_at = create_refresh_token(user.id)
         family = family_id or uuid.uuid4()
         row = RefreshToken(

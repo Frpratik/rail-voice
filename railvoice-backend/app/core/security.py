@@ -14,11 +14,12 @@ def hash_value(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:
+def create_access_token(subject: str | uuid.UUID, extra: dict[str, Any] | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": subject, "exp": expire, "type": "access"}
+    payload = {"sub": str(subject), "exp": expire, "type": "access"}
     if extra:
-        payload.update(extra)
+        for k, v in extra.items():
+            payload[k] = str(v) if isinstance(v, uuid.UUID) else v
     return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
 
 
