@@ -17,6 +17,7 @@ from app.core.security import (
     create_refresh_token,
     hash_value,
 )
+from app.services.issue_actions import enforce_daily_limit, notify_staff
 from app.models.issue import Comment, Issue, IssueSupport, IssueTimelineEvent
 from app.models.location import Station
 from app.models.user import OtpRequest, RefreshToken, Role, User, UserRole
@@ -244,6 +245,7 @@ class IssueService:
         latitude: float | None = None,
         longitude: float | None = None,
     ) -> Issue:
+        await enforce_daily_limit(db, creator)
         if creator.is_anonymous:
             day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
             created_today = await db.scalar(
@@ -308,6 +310,16 @@ class IssueService:
             )
         )
         await db.flush()
+
+        await notify_staff(
+            db,
+            station,
+            kind="new_issue",
+            title=f"{'URGENT: ' if is_emergency else ''}New report at {station.name}",
+            body=f"{issue.issue_number}: {issue.title}",
+            issue_id=issue.id,
+            skip_user_id=creator.id,
+        )
 
         result = await db.execute(
             select(Issue).options(*ISSUE_RESPONSE_LOAD).where(Issue.id == issue.id)

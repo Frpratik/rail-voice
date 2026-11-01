@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   FileText,
+  Flag,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/admin/dashboard", icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/issues", icon: Inbox, label: "Issue queue" },
+  { href: "/admin/flags", icon: Flag, label: "Flagged" },
   { href: "/admin/reports", icon: FileText, label: "Reports" },
   { href: "/admin/users", icon: Users, label: "Users" },
 ];

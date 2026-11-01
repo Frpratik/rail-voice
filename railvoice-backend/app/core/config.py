@@ -72,6 +72,8 @@ class Settings(BaseSettings):
         return self.rate_limit_otp_per_mobile_per_hour
 
     anonymous_daily_issue_limit: int = 3
+    daily_issue_limit: int = 10
+    flag_notify_threshold: int = 3
     issue_edit_window_minutes: int = 15
     max_photos_per_issue: int = 5
 

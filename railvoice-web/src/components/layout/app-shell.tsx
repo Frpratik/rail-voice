@@ -223,6 +223,15 @@ export function SiteFooter() {
           <Link href="/report" className="transition-colors hover:text-[#f5b800]">
             Report
           </Link>
+          <Link href="/help" className="transition-colors hover:text-[#f5b800]">
+            Help
+          </Link>
+          <Link href="/privacy" className="transition-colors hover:text-[#f5b800]">
+            Privacy
+          </Link>
+          <Link href="/terms" className="transition-colors hover:text-[#f5b800]">
+            Terms
+          </Link>
         </div>
       </div>
     </footer>

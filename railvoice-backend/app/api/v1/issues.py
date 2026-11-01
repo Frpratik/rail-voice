@@ -7,19 +7,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import get_current_user_optional, get_db, get_reporter_user
-from app.models.issue import Issue
+from app.models.issue import Comment, Issue, IssueFlag, IssueSupport
 from app.models.location import IssueCategory, Station, Zone
 from app.models.user import User
 from app.schemas.common import (
     CategoryOut,
+    ConfirmResolutionRequest,
     Envelope,
+    FlagRequest,
     IssueCreateRequest,
     IssueDetailOut,
     Meta,
     StationOut,
     SupportResponse,
+    WithdrawRequest,
 )
 from app.schemas.mappers import issue_detail_to_out, issue_to_out, station_to_out
+from app.services import issue_actions
 from app.services.issue_service import issue_service
 
 router = APIRouter(tags=["Issues", "Stations"])
@@ -171,6 +175,24 @@ async def list_my_issues(
     )
 
 
+@router.get("/issues/similar")
+async def similar_issues(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    station_id: uuid.UUID,
+    category_code: str | None = Query(None),
+    q: str | None = Query(None, max_length=500),
+    limit: int = Query(5, ge=1, le=10),
+) -> Envelope[dict]:
+    """Open reports at this station that look like the one being written."""
+    issues = await issue_actions.find_similar_issues(
+        db, station_id=station_id, category_code=category_code, text=q, limit=limit
+    )
+    return Envelope(
+        data={"items": [issue_to_out(i).model_dump(mode="json") for i in issues]},
+        meta=Meta(),
+    )
+
+
 @router.get("/issues/{issue_id}", response_model=Envelope[IssueDetailOut])
 async def get_issue(
     issue_id: uuid.UUID,
@@ -180,7 +202,38 @@ async def get_issue(
     issue = await issue_service.get_issue_detail(db, issue_id)
     if not issue or (not issue.is_public and issue.creator_id != getattr(user, "id", None)):
         raise HTTPException(status_code=404, detail="Issue not found")
-    return Envelope(data=issue_detail_to_out(issue), meta=Meta())
+    detail = issue_detail_to_out(issue)
+    is_creator = bool(user and issue.creator_id == user.id)
+    supported = False
+    flagged = False
+    if user:
+        supported = bool(
+            await db.scalar(
+                select(func.count())
+                .select_from(IssueSupport)
+                .where(IssueSupport.issue_id == issue.id, IssueSupport.user_id == user.id)
+            )
+        )
+        flagged = bool(
+            await db.scalar(
+                select(func.count())
+                .select_from(IssueFlag)
+                .where(
+                    IssueFlag.issue_id == issue.id,
+                    IssueFlag.user_id == user.id,
+                    IssueFlag.comment_id.is_(None),
+                )
+            )
+        )
+    detail.viewer = {
+        "signed_in": bool(user and not user.is_anonymous),
+        "is_creator": is_creator,
+        "supported": supported,
+        "flagged": flagged,
+        "can_withdraw": is_creator and issue.status in issue_actions.WITHDRAWABLE,
+        "can_confirm": is_creator and issue.status in issue_actions.CONFIRMABLE,
+    }
+    return Envelope(data=detail, meta=Meta())
 
 
 @router.get("/issues")
@@ -240,3 +293,87 @@ async def support_issue(
         ),
         meta=Meta(),
     )
+
+
+async def _load_issue(db: AsyncSession, issue_id: uuid.UUID) -> Issue:
+    issue = await db.get(Issue, issue_id)
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    return issue
+
+
+def _as_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, PermissionError):
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/issues/{issue_id}/withdraw")
+async def withdraw_issue(
+    issue_id: uuid.UUID,
+    body: WithdrawRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_reporter_user)],
+) -> Envelope[dict]:
+    issue = await _load_issue(db, issue_id)
+    try:
+        await issue_actions.withdraw_issue(db, issue, user, body.reason)
+    except (PermissionError, ValueError) as exc:
+        raise _as_http_error(exc) from exc
+    await db.flush()
+    return Envelope(data={"status": issue.status}, meta=Meta())
+
+
+@router.post("/issues/{issue_id}/confirm")
+async def confirm_issue_resolution(
+    issue_id: uuid.UUID,
+    body: ConfirmResolutionRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_reporter_user)],
+) -> Envelope[dict]:
+    issue = await _load_issue(db, issue_id)
+    try:
+        await issue_actions.confirm_resolution(db, issue, user, fixed=body.fixed, remarks=body.remarks)
+    except (PermissionError, ValueError) as exc:
+        raise _as_http_error(exc) from exc
+    await db.flush()
+    return Envelope(data={"status": issue.status}, meta=Meta())
+
+
+@router.post("/issues/{issue_id}/flag", status_code=status.HTTP_201_CREATED)
+async def flag_issue(
+    issue_id: uuid.UUID,
+    body: FlagRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_reporter_user)],
+) -> Envelope[dict]:
+    issue = await _load_issue(db, issue_id)
+    if not issue.is_public:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    try:
+        await issue_actions.flag_target(
+            db, user=user, issue=issue, comment=None, reason=body.reason, note=body.note
+        )
+    except ValueError as exc:
+        raise _as_http_error(exc) from exc
+    return Envelope(data={"flagged": True}, meta=Meta())
+
+
+@router.post("/comments/{comment_id}/flag", status_code=status.HTTP_201_CREATED)
+async def flag_comment(
+    comment_id: uuid.UUID,
+    body: FlagRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_reporter_user)],
+) -> Envelope[dict]:
+    comment = await db.get(Comment, comment_id)
+    if not comment or comment.is_hidden:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    issue = await _load_issue(db, comment.issue_id)
+    try:
+        await issue_actions.flag_target(
+            db, user=user, issue=issue, comment=comment, reason=body.reason, note=body.note
+        )
+    except ValueError as exc:
+        raise _as_http_error(exc) from exc
+    return Envelope(data={"flagged": True}, meta=Meta())

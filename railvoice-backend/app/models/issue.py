@@ -146,6 +146,28 @@ class Comment(Base):
     user: Mapped["User"] = relationship(back_populates="comments")
 
 
+class IssueFlag(Base):
+    """A passenger's report that an issue or comment is spam, abusive or wrong."""
+
+    __tablename__ = "issue_flags"
+    __table_args__ = (UniqueConstraint("user_id", "issue_id", "comment_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issue_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), nullable=False)
+    comment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("comments.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    reason: Mapped[str] = mapped_column(String(30), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    resolution: Mapped[str | None] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    issue: Mapped[Issue] = relationship(foreign_keys=[issue_id], lazy="selectin")
+    comment: Mapped["Comment | None"] = relationship(foreign_keys=[comment_id], lazy="selectin")
+    reporter: Mapped["User"] = relationship(foreign_keys=[user_id], lazy="selectin")
+
+
 class SystemConfig(Base):
     __tablename__ = "system_config"
 

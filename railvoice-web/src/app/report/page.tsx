@@ -1,25 +1,26 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   AlertTriangle,
   ArrowRight,
   Camera,
-  Check,
+  Phone,
+  ThumbsUp,
   FileText,
   Image as ImageIcon,
   MapPin,
-  Train,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 
 const CATEGORIES = [
@@ -31,8 +32,19 @@ const CATEGORIES = [
   { id: "facilities", label: "Ticket Counters & Fans" },
 ];
 
+function useDebounced<T>(value: T, ms = 500): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
 export default function ReportPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [differentProblem, setDifferentProblem] = useState(false);
   const [stationId, setStationId] = useState("");
   const [categoryCode, setCategoryCode] = useState("platform_cleanliness");
   const [title, setTitle] = useState("");
@@ -49,6 +61,39 @@ export default function ReportPage() {
   });
   const stations = stationsData?.data ?? [];
 
+  const debouncedText = useDebounced(`${title} ${description}`.trim());
+  const { data: similarData } = useQuery({
+    queryKey: ["similar", stationId, categoryCode, debouncedText],
+    queryFn: () =>
+      api.issues.similar({
+        station_id: stationId,
+        category_code: categoryCode,
+        q: debouncedText,
+      }),
+    enabled: !!stationId && debouncedText.length >= 10,
+  });
+  const similar = similarData?.data.items ?? [];
+
+  const supportMutation = useMutation({
+    mutationFn: (id: string) => api.issues.support(id),
+    onSuccess: (_, id) => {
+      toast.success("Thanks, you've backed that report instead.");
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      router.push(`/issues/${id}`);
+    },
+    onError: (e: Error, id) => {
+      if (/already/i.test(e.message)) {
+        // They already back it (e.g. it's their own report): just open it.
+        toast.info("You've already backed this report.");
+        router.push(`/issues/${id}`);
+        return;
+      }
+      toast.error(e.message);
+    },
+  });
+
+  const showEmergencyNotice = isEmergency || categoryCode === "safety_security";
+
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selected = Array.from(e.target.files);
@@ -64,6 +109,10 @@ export default function ReportPage() {
     e.preventDefault();
     if (!stationId) {
       toast.error("Please select the railway station");
+      return;
+    }
+    if (similar.length > 0 && !differentProblem) {
+      toast.error("Please check the similar reports below first");
       return;
     }
     if (description.trim().length < 10) {
@@ -96,7 +145,7 @@ export default function ReportPage() {
         }
       }
 
-      toast.success("Problem reported successfully! Station Admin notified.");
+      toast.success("Problem reported successfully! Station staff have been notified.");
       router.push(`/issues/${issueId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit grievance");
@@ -230,6 +279,79 @@ export default function ReportPage() {
             </label>
           </div>
         </Card>
+
+        {showEmergencyNotice && (
+          <div
+            role="alert"
+            className="flex items-start gap-3 border-2 border-destructive bg-destructive/10 p-4 text-sm"
+          >
+            <Phone className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <p className="leading-relaxed">
+              <strong className="text-display block text-lg text-destructive">
+                If someone is in danger, call now
+              </strong>
+              Railway helpline <strong>139</strong> · RPF security <strong>182</strong> · Emergency{" "}
+              <strong>112</strong>. This form is read by station staff during working hours and is
+              not an emergency service.
+            </p>
+          </div>
+        )}
+
+        {similar.length > 0 && (
+          <Card className="space-y-4 border-2 border-accent p-6">
+            <div>
+              <h2 className="text-display text-2xl">Already reported?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Other passengers have reported something similar at this station. Backing an
+                existing report moves it up the queue faster than a duplicate.
+              </p>
+            </div>
+            <ul className="space-y-3">
+              {similar.map((item) => (
+                <li key={item.id} className="border border-card-border bg-background p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Link
+                      href={`/issues/${item.id}`}
+                      target="_blank"
+                      className="text-display text-lg hover:underline"
+                    >
+                      {item.title ?? item.description.slice(0, 80)}
+                    </Link>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                    {item.description}
+                  </p>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <span className="font-board text-xs text-muted-foreground">
+                      {item.issue_number} · {item.support_count} backing
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="accent"
+                      className="gap-1.5"
+                      disabled={supportMutation.isPending}
+                      onClick={() => supportMutation.mutate(item.id)}
+                    >
+                      <ThumbsUp className="h-3.5 w-3.5" />
+                      Back this instead
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={differentProblem}
+                onChange={(e) => setDifferentProblem(e.target.checked)}
+                className="mt-1 h-4 w-4"
+              />
+              <span>None of these is my problem. I still want to submit a new report.</span>
+            </label>
+          </Card>
+        )}
 
         {/* Photo Upload */}
         <Card className="p-6 space-y-4">

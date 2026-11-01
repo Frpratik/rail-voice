@@ -125,3 +125,31 @@ export interface Officer {
   display_name: string;
   roles: string[];
 }
+
+export interface IssueViewer {
+  signed_in: boolean;
+  is_creator: boolean;
+  supported: boolean;
+  flagged: boolean;
+  can_withdraw: boolean;
+  can_confirm: boolean;
+}
+
+export interface FlagItem {
+  id: string;
+  reason: string;
+  note: string | null;
+  created_at: string | null;
+  resolved_at: string | null;
+  resolution: string | null;
+  reporter: string | null;
+  target: "issue" | "comment";
+  comment_body: string | null;
+  issue: {
+    id: string;
+    issue_number: string;
+    title: string | null;
+    status: string;
+    station: string | null;
+  };
+}

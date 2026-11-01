@@ -130,6 +130,20 @@ class IssueCreateRequest(BaseModel):
     longitude: float | None = None
 
 
+class WithdrawRequest(BaseModel):
+    reason: str | None = Field(None, max_length=500)
+
+
+class ConfirmResolutionRequest(BaseModel):
+    fixed: bool
+    remarks: str | None = Field(None, max_length=500)
+
+
+class FlagRequest(BaseModel):
+    reason: str = Field(..., max_length=30)
+    note: str | None = Field(None, max_length=500)
+
+
 class IssueLocationOut(BaseModel):
     station: dict[str, Any]
     platform: dict[str, Any] | None = None
@@ -240,6 +254,7 @@ class IssueDetailOut(BaseModel):
     issue: IssueOut
     timeline: list[TimelineEventOut]
     comments: list[CommentOut] = []
+    viewer: dict[str, Any] = {}
 
 
 class SupportResponse(BaseModel):

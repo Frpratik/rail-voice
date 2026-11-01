@@ -1,6 +1,7 @@
 from app.models.issue import (
     Comment,
     Issue,
+    IssueFlag,
     IssuePhoto,
     IssueSupport,
     IssueTimelineEvent,
@@ -34,6 +35,7 @@ __all__ = [
     "Issue",
     "IssueSupport",
     "IssueTimelineEvent",
+    "IssueFlag",
     "IssuePhoto",
     "Comment",
     "Notification",

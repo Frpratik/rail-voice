@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -326,7 +327,7 @@ export default function LoginPage() {
           )}
 
           <p className="text-center text-xs text-muted-foreground">
-            Sign in is required to access RailVoice and submit issues.
+            Sign in to report and track problems. By signing in you agree to the <Link href="/terms" className="underline">terms</Link> and <Link href="/privacy" className="underline">privacy policy</Link>. <Link href="/help" className="underline">How it works</Link>.
           </p>
         </Card>
       </motion.div>

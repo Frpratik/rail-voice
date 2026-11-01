@@ -25,6 +25,7 @@ export default function AdminLayout({
             {[
               { href: "/admin/dashboard", label: "Overview" },
               { href: "/admin/issues", label: "Issue Triage" },
+              { href: "/admin/flags", label: "Flagged" },
               { href: "/admin/reports", label: "Reports" },
               { href: "/admin/users", label: "Users" },
             ].map((l) => (

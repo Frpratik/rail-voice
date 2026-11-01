@@ -55,9 +55,14 @@ npm install && npm run dev
 
 - **Auth** — mobile OTP, Google (mock or live), refresh-token rotation with reuse detection
 - **Issues** — report, list, detail, support (upvote), my issues, comments, photos, text search
+- **Duplicate check** — before submitting, passengers see similar open reports at the station and can back one instead
+- **Reporter actions** — withdraw until work starts; confirm the fix (closes) or say it isn't fixed (reopens for staff)
+- **Moderation** — passengers flag reports and comments; staff review them under Admin → Flagged
+- **Staff alerts** — station staff are notified of new, reopened and flagged reports
 - **Notifications** — in-app
 - **Admin** — dashboard KPIs, location-scoped queue, status transitions, assign, escalate, XLSX/PDF export, user management
-- **Platform** — rate limiting, idempotency keys, Prometheus `/metrics`, correlation IDs
+- **Help, privacy and terms pages** — public, linked from the footer and sign-in
+- **Platform** — daily report limit per person, rate limiting, idempotency keys, Prometheus `/metrics`, correlation IDs
 
 ## Project structure
 

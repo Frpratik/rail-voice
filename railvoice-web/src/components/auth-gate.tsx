@@ -6,6 +6,12 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
 import type { User } from "@/lib/types";
 
+const PUBLIC_PATHS = ["/login", "/help", "/privacy", "/terms"];
+
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -16,14 +22,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
+    // Deferred so the already-hydrated case doesn't set state synchronously in the effect.
+    if (useAuthStore.persist.hasHydrated()) queueMicrotask(() => setHydrated(true));
     return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
   }, []);
   const [sessionValid, setSessionValid] = useState(false);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (pathname.startsWith("/login")) return;
+    if (isPublicPath(pathname)) return;
     if (!user) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       return;
@@ -56,7 +63,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       });
   }, [hydrated, logout, pathname, router, setAuth, user]);
 
-  if (pathname.startsWith("/login")) return children;
+  if (isPublicPath(pathname)) return children;
   if (!hydrated || !sessionValid || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">

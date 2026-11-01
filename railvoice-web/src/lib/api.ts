@@ -3,7 +3,9 @@ import type {
   Category,
   Comment,
   DashboardData,
+  FlagItem,
   Issue,
+  IssueViewer,
   NotificationItem,
   Officer,
   Photo,
@@ -279,8 +281,34 @@ export const api = {
           issue: Issue;
           timeline: TimelineEvent[];
           comments: Comment[];
+          viewer: IssueViewer;
         }>
       >(`/issues/${id}`),
+
+    similar: (params: { station_id: string; category_code?: string; q?: string }) => {
+      const q = new URLSearchParams({ station_id: params.station_id });
+      if (params.category_code) q.set("category_code", params.category_code);
+      if (params.q) q.set("q", params.q);
+      return apiFetch<ApiEnvelope<{ items: Issue[] }>>(`/issues/similar?${q.toString()}`);
+    },
+
+    withdraw: (id: string, reason?: string) =>
+      apiFetch<ApiEnvelope<{ status: string }>>(`/issues/${id}/withdraw`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
+
+    confirm: (id: string, payload: { fixed: boolean; remarks?: string }) =>
+      apiFetch<ApiEnvelope<{ status: string }>>(`/issues/${id}/confirm`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    flag: (id: string, payload: { reason: string; note?: string }) =>
+      apiFetch<ApiEnvelope<{ flagged: boolean }>>(`/issues/${id}/flag`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
 
     create: (payload: {
       description: string;
@@ -343,6 +371,12 @@ export const api = {
     list: (issueId: string) =>
       apiFetch<ApiEnvelope<{ items: Comment[] }>>(`/issues/${issueId}/comments`),
 
+    flag: (commentId: string, payload: { reason: string; note?: string }) =>
+      apiFetch<ApiEnvelope<{ flagged: boolean }>>(`/comments/${commentId}/flag`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
     create: (issueId: string, payload: { body: string; parent_id?: string }) =>
       apiFetch<ApiEnvelope<Comment>>(`/issues/${issueId}/comments`, {
         method: "POST",
@@ -402,6 +436,17 @@ export const api = {
       payload: { target: "station_manager" | "division" | "zone"; remarks: string }
     ) =>
       apiFetch<ApiEnvelope<{ issue: Issue }>>(`/admin/issues/${id}/escalate`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    flags: (params?: { include_resolved?: boolean }) =>
+      apiFetch<ApiEnvelope<{ items: FlagItem[] }>>(
+        `/admin/flags${params?.include_resolved ? "?include_resolved=true" : ""}`
+      ),
+
+    resolveFlag: (id: string, payload: { action: "dismiss" | "hide"; remarks?: string }) =>
+      apiFetch<ApiEnvelope<{ resolved: number; action: string }>>(`/admin/flags/${id}/resolve`, {
         method: "POST",
         body: JSON.stringify(payload),
       }),

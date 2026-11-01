@@ -5,14 +5,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, ArrowLeft, MessageSquare, Send, Share2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Flag, MessageSquare, Send, Share2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { IssueTimeline } from "@/components/issues/issue-timeline";
 import { SupportButton } from "@/components/issues/support-button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/input";
+import { Select, Textarea } from "@/components/ui/input";
 import { IssueCardSkeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
@@ -24,6 +24,9 @@ export default function IssueDetailPage() {
   const { user } = useAuthStore();
   const [commentText, setCommentText] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [flagTarget, setFlagTarget] = useState<{ kind: "issue" | "comment"; id: string } | null>(null);
+  const [flagReason, setFlagReason] = useState("spam");
+  const [fixNote, setFixNote] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["issue", id],
@@ -50,6 +53,44 @@ export default function IssueDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["issue", id] });
+    queryClient.invalidateQueries({ queryKey: ["issues"] });
+    queryClient.invalidateQueries({ queryKey: ["my-issues"] });
+  };
+
+  const withdrawMutation = useMutation({
+    mutationFn: () => api.issues.withdraw(id),
+    onSuccess: () => {
+      toast.success("Report withdrawn");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: (fixed: boolean) => api.issues.confirm(id, { fixed, remarks: fixNote.trim() || undefined }),
+    onSuccess: (_, fixed) => {
+      toast.success(fixed ? "Thanks, report closed." : "Sent back to station staff.");
+      setFixNote("");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const flagMutation = useMutation({
+    mutationFn: () =>
+      flagTarget?.kind === "comment"
+        ? api.comments.flag(flagTarget.id, { reason: flagReason })
+        : api.issues.flag(id, { reason: flagReason }),
+    onSuccess: () => {
+      toast.success("Thanks, station staff will review it.");
+      setFlagTarget(null);
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (isLoading) return <IssueCardSkeleton />;
   if (error || !data) {
     return (
@@ -65,7 +106,7 @@ export default function IssueDetailPage() {
     );
   }
 
-  const { issue, timeline, comments } = data.data;
+  const { issue, timeline, comments, viewer } = data.data;
   const photos = issue.photos ?? [];
 
   const share = async () => {
@@ -160,7 +201,7 @@ export default function IssueDetailPage() {
           </div>
           <SupportButton
             supportCount={issue.support_count}
-            supported={false}
+            supported={viewer?.supported ?? false}
             loading={supportMutation.isPending}
             onSupport={() => supportMutation.mutate()}
           />
@@ -216,6 +257,82 @@ export default function IssueDetailPage() {
             </label>
           </div>
         )}
+
+        {viewer?.can_confirm && (
+          <div className="space-y-3 border-2 border-accent bg-accent/10 p-4">
+            <p className="text-display text-xl">Station staff say this is fixed. Is it?</p>
+            <Textarea
+              rows={2}
+              placeholder="Optional note, e.g. what is still wrong"
+              value={fixNote}
+              onChange={(e) => setFixNote(e.target.value)}
+              className="min-h-0 text-sm"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="accent" disabled={confirmMutation.isPending} onClick={() => confirmMutation.mutate(true)}>
+                Yes, it&apos;s fixed
+              </Button>
+              <Button variant="outline" disabled={confirmMutation.isPending} onClick={() => confirmMutation.mutate(false)}>
+                No, still a problem
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {(viewer?.can_withdraw || (viewer?.signed_in && !viewer.is_creator)) && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-card-border pt-4 text-sm">
+            {viewer.can_withdraw ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={withdrawMutation.isPending}
+                onClick={() => {
+                  if (window.confirm("Withdraw this report? Staff will no longer see it in the queue.")) {
+                    withdrawMutation.mutate();
+                  }
+                }}
+              >
+                Withdraw my report
+              </Button>
+            ) : (
+              <span />
+            )}
+            {viewer.signed_in && !viewer.is_creator && (
+              <button
+                type="button"
+                disabled={viewer.flagged}
+                onClick={() => setFlagTarget({ kind: "issue", id })}
+                className="label-caps inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
+              >
+                <Flag className="h-3.5 w-3.5" />
+                {viewer.flagged ? "You flagged this" : "Flag this report"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {flagTarget && (
+          <div className="fixed inset-x-4 bottom-24 z-50 mx-auto max-w-md space-y-3 border-2 border-foreground bg-card p-4 md:bottom-8">
+            <p className="text-display text-lg">
+              Flag this {flagTarget.kind === "comment" ? "comment" : "report"}
+            </p>
+            <Select value={flagReason} onChange={(e) => setFlagReason(e.target.value)}>
+              <option value="spam">Spam or advertising</option>
+              <option value="abuse">Abusive or offensive</option>
+              <option value="false_report">False or made up</option>
+              <option value="duplicate">Duplicate of another report</option>
+              <option value="other">Something else</option>
+            </Select>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={flagMutation.isPending} onClick={() => flagMutation.mutate()}>
+                Send flag
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setFlagTarget(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Official Status Progression Timeline */}
@@ -247,7 +364,19 @@ export default function IssueDetailPage() {
                   <span className="font-semibold text-foreground">
                     {c.author.display_name}
                   </span>
-                  <span>{formatRelativeTime(c.created_at)}</span>
+                  <span className="flex items-center gap-3">
+                    {formatRelativeTime(c.created_at)}
+                    {viewer?.signed_in && c.author.id !== user?.id && (
+                      <button
+                        type="button"
+                        aria-label="Flag comment"
+                        onClick={() => setFlagTarget({ kind: "comment", id: c.id })}
+                        className="hover:text-destructive"
+                      >
+                        <Flag className="h-3 w-3" />
+                      </button>
+                    )}
+                  </span>
                 </div>
                 <p className="text-xs text-foreground leading-relaxed">
                   {c.body}

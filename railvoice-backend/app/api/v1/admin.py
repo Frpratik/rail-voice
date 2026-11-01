@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 import uuid
 
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.deps import get_db, require_official
 from app.core.enums import IssueStatus, TERMINAL_STATUSES, TimelineEventType, Visibility
-from app.models.issue import Issue, IssueTimelineEvent
+from app.models.issue import Comment, Issue, IssueFlag, IssueTimelineEvent
 from app.models.user import Notification, User
 from app.schemas.common import (
     AssignRequest,
@@ -522,3 +523,103 @@ async def notify_main_admin(
         data={"notified": notified, "open_issues": open_count or 0, "scope": scope_note},
         meta=Meta(),
     )
+
+
+class FlagResolveRequest(BaseModel):
+    action: Literal["dismiss", "hide"]
+    remarks: str | None = Field(None, max_length=500)
+
+
+@router.get("/flags")
+async def list_flags(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    officer: Annotated[User, Depends(require_official)],
+    include_resolved: bool = False,
+    limit: int = Query(100, ge=1, le=200),
+) -> Envelope[dict]:
+    """Passenger flags on reports and comments, newest first, within the officer's scope."""
+    query = select(IssueFlag).join(Issue, Issue.id == IssueFlag.issue_id)
+    if not include_resolved:
+        query = query.where(IssueFlag.resolved_at.is_(None))
+    query = _scoped_issues(query, officer).order_by(IssueFlag.created_at.desc()).limit(limit)
+    flags = (await db.execute(query)).scalars().unique().all()
+
+    items = []
+    for flag in flags:
+        issue = flag.issue
+        items.append(
+            {
+                "id": str(flag.id),
+                "reason": flag.reason,
+                "note": flag.note,
+                "created_at": flag.created_at.isoformat() if flag.created_at else None,
+                "resolved_at": flag.resolved_at.isoformat() if flag.resolved_at else None,
+                "resolution": flag.resolution,
+                "reporter": flag.reporter.display_name if flag.reporter else None,
+                "target": "comment" if flag.comment_id else "issue",
+                "comment_body": flag.comment.body if flag.comment else None,
+                "issue": {
+                    "id": str(issue.id),
+                    "issue_number": issue.issue_number,
+                    "title": issue.title,
+                    "status": issue.status,
+                    "station": issue.station.name if issue.station else None,
+                },
+            }
+        )
+    return Envelope(data={"items": items}, meta=Meta())
+
+
+@router.post("/flags/{flag_id}/resolve")
+async def resolve_flag(
+    flag_id: uuid.UUID,
+    body: FlagResolveRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    officer: Annotated[User, Depends(require_official)],
+) -> Envelope[dict]:
+    flag = await db.get(IssueFlag, flag_id)
+    if not flag:
+        raise HTTPException(status_code=404, detail="Flag not found")
+    issue = await db.get(Issue, flag.issue_id)
+    if not issue:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    enforce_issue_location_scope(officer, issue)
+
+    now = datetime.now(timezone.utc)
+    if body.action == "hide":
+        if flag.comment_id:
+            comment = await db.get(Comment, flag.comment_id)
+            if comment and not comment.is_hidden:
+                comment.is_hidden = True
+                if issue.comment_count > 0:
+                    issue.comment_count -= 1
+        else:
+            previous = issue.status
+            issue.status = IssueStatus.SPAM.value
+            issue.is_public = False
+            db.add(
+                IssueTimelineEvent(
+                    issue_id=issue.id,
+                    event_type=TimelineEventType.STATUS_CHANGE.value,
+                    from_status=previous,
+                    to_status=issue.status,
+                    actor_id=officer.id,
+                    remarks=body.remarks or "Removed after passenger flags",
+                    visibility=Visibility.INTERNAL.value,
+                )
+            )
+
+    # Resolve every open flag on the same target at once.
+    target = select(IssueFlag).where(
+        IssueFlag.issue_id == flag.issue_id,
+        IssueFlag.resolved_at.is_(None),
+        IssueFlag.comment_id.is_(None) if flag.comment_id is None else IssueFlag.comment_id == flag.comment_id,
+    )
+    resolved = 0
+    for row in (await db.execute(target)).scalars().unique().all():
+        row.resolved_at = now
+        row.resolved_by = officer.id
+        row.resolution = body.action
+        resolved += 1
+    await db.flush()
+    return Envelope(data={"resolved": resolved, "action": body.action}, meta=Meta())
