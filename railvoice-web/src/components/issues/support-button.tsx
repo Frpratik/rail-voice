@@ -19,7 +19,7 @@ export function SupportButton({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col items-stretch gap-4", className)}>
+    <div className={cn("flex w-full flex-col items-stretch gap-4 sm:w-auto", className)}>
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="label-caps text-xs text-muted-foreground">

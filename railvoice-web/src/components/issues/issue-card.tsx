@@ -24,7 +24,7 @@ export function IssueCard({
   return (
     <Link href={targetHref} className="group block">
       <article
-        style={{ "--stub": "84px" } as React.CSSProperties}
+        style={{ "--stub": "72px" } as React.CSSProperties}
         className={cn(
           "ticket flex transition-colors group-hover:border-foreground/60",
           issue.is_emergency && "border-destructive",
@@ -33,18 +33,18 @@ export function IssueCard({
       >
         <div
           className={cn(
-            "flex w-[84px] shrink-0 flex-col items-center justify-between px-2 py-4 text-center",
+            "flex w-[72px] shrink-0 flex-col items-center justify-between px-1 py-4 text-center",
             issue.is_emergency ? "bg-destructive text-white" : "bg-primary text-primary-foreground"
           )}
         >
           <span className="label-caps text-[10px] opacity-70">Station</span>
-          <span className="text-display text-3xl tracking-wide">{stationCode}</span>
+          <span className="text-display text-2xl tracking-wide">{stationCode}</span>
           <span className="font-board text-[10px] leading-tight opacity-80">
             {issue.issue_number.replace("RV-", "")}
           </span>
         </div>
 
-        <div className="ticket-perforation min-w-0 flex-1 p-4 pl-5">
+        <div className="ticket-perforation min-w-0 flex-1 p-3 pl-4 sm:p-4 sm:pl-5">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {issue.is_emergency && (
               <Badge variant="emergency">
@@ -55,7 +55,7 @@ export function IssueCard({
             {issue.category && <Badge variant="outline">{issue.category.name}</Badge>}
           </div>
 
-          <h3 className="text-display line-clamp-2 text-xl leading-snug group-hover:text-accent">
+          <h3 className="text-display line-clamp-3 text-lg leading-snug sm:text-xl group-hover:text-accent">
             {issue.title ?? issue.description.slice(0, 90)}
           </h3>
 

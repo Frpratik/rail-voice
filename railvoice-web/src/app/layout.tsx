@@ -41,7 +41,7 @@ export const viewport: Viewport = {
   ],
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -55,7 +55,7 @@ export default function RootLayout({
             <AuthGate>
               <div className="flex min-h-screen flex-col">
                 <AppHeader />
-                <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-6 sm:px-6 md:pb-12 md:pt-8">
+                <main className="mx-auto w-full max-w-6xl flex-1 min-w-0 px-4 pb-10 pt-5 sm:px-6 md:pt-8 lg:pb-12">
                   {children}
                 </main>
                 <SiteFooter />

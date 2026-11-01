@@ -164,7 +164,7 @@ export default function ReportPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Station Selector */}
-        <Card className="p-6 space-y-4">
+        <Card className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-accent" />
             <h2 className="text-base font-semibold">1. Location & Station</h2>
@@ -189,7 +189,7 @@ export default function ReportPage() {
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="train">Train / Local (Optional)</Label>
               <Input
@@ -212,7 +212,7 @@ export default function ReportPage() {
         </Card>
 
         {/* Problem Details */}
-        <Card className="p-6 space-y-4">
+        <Card className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-accent" />
             <h2 className="text-base font-semibold">2. Problem Details</h2>
@@ -220,7 +220,7 @@ export default function ReportPage() {
 
           <div className="space-y-2">
             <Label>Category</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 gap-2">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
@@ -298,7 +298,7 @@ export default function ReportPage() {
         )}
 
         {similar.length > 0 && (
-          <Card className="space-y-4 border-2 border-accent p-6">
+          <Card className="space-y-4 border-2 border-accent p-4 sm:p-6">
             <div>
               <h2 className="text-display text-2xl">Already reported?</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -354,7 +354,7 @@ export default function ReportPage() {
         )}
 
         {/* Photo Upload */}
-        <Card className="p-6 space-y-4">
+        <Card className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2">
             <Camera className="h-5 w-5 text-accent" />
             <h2 className="text-base font-semibold">3. Evidence Photo (Optional)</h2>

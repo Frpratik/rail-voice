@@ -162,13 +162,13 @@ export default function IssueDetailPage() {
       </div>
 
       {/* Main Grievance Header */}
-      <Card className="p-6 sm:p-8 space-y-5">
-        <div className="flex items-start justify-between gap-4">
+      <Card className="p-4 sm:p-8 space-y-5">
+        <div className="flex flex-col-reverse items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
           <div>
             <p className="font-mono text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               {issue.issue_number}
             </p>
-            <h1 className="text-display mt-1 text-2xl font-bold tracking-tight sm:text-3xl text-foreground">
+            <h1 className="text-display mt-1 text-2xl sm:text-3xl text-foreground">
               {issue.title ?? "Grievance Report"}
             </h1>
           </div>
@@ -192,7 +192,7 @@ export default function IssueDetailPage() {
         </div>
 
         {/* Upvote & Action row */}
-        <div className="flex items-center justify-between border-t border-b border-card-border py-4">
+        <div className="flex flex-col gap-4 border-t border-b border-card-border py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs text-muted-foreground">Reported by</p>
             <p className="text-sm font-medium">
@@ -336,7 +336,7 @@ export default function IssueDetailPage() {
       </Card>
 
       {/* Official Status Progression Timeline */}
-      <Card className="p-6 sm:p-8 space-y-4">
+      <Card className="p-4 sm:p-8 space-y-4">
         <h2 className="text-base font-semibold text-foreground">
           Official Action Timeline
         </h2>
@@ -344,7 +344,7 @@ export default function IssueDetailPage() {
       </Card>
 
       {/* Community Comments Section */}
-      <Card className="p-6 sm:p-8 space-y-5">
+      <Card className="p-4 sm:p-8 space-y-5">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-accent" />
           <h2 className="text-base font-semibold text-foreground">

@@ -6,6 +6,7 @@ import {
   Bell,
   ClipboardList,
   Home,
+  MapPin,
   Moon,
   Plus,
   Shield,
@@ -64,16 +65,16 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 bg-[#0d2252] text-white">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
           <LogoMark />
-          <span className="text-display text-2xl uppercase tracking-[0.04em]">
+          <span className="text-display text-xl uppercase tracking-[0.04em] sm:text-2xl">
             Rail<span className="text-[#f5b800]">Voice</span>
           </span>
         </Link>
 
         {!isLogin && (
-          <nav className="hidden items-stretch self-stretch md:flex">
+          <nav className="hidden items-stretch self-stretch lg:flex">
             {navItems.map((item) => {
               const active =
                 item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -118,7 +119,7 @@ export function AppHeader() {
                   <Shield className="h-4 w-4 text-[#f5b800]" />
                 </Link>
               )}
-              <Link href="/notifications" className={cn(iconBtn, "hidden sm:flex")} aria-label="Notifications">
+              <Link href="/notifications" className={iconBtn} aria-label="Notifications">
                 <Bell className="h-4 w-4" />
               </Link>
               <Link href="/profile" className={iconBtn} aria-label="Profile">
@@ -126,7 +127,7 @@ export function AppHeader() {
               </Link>
               <Link
                 href="/report"
-                className="label-caps ml-2 hidden h-10 items-center rounded-sm border-2 border-[#101a33] bg-[#f5b800] px-4 text-sm text-[#101a33] transition-colors hover:bg-[#ffd24d] md:inline-flex"
+                className="label-caps ml-2 hidden h-10 items-center rounded-sm border-2 border-[#101a33] bg-[#f5b800] px-4 text-sm text-[#101a33] transition-colors hover:bg-[#ffd24d] lg:inline-flex"
               >
                 Report issue
               </Link>
@@ -149,16 +150,16 @@ export function BottomNav() {
 
   const items = [
     { href: "/", icon: Home, label: "Home" },
-    { href: "/my-issues", icon: ClipboardList, label: "My issues" },
+    { href: "/stations", icon: MapPin, label: "Stations" },
     { href: "/report", icon: Plus, label: "Report", accent: true },
+    { href: "/my-issues", icon: ClipboardList, label: "My issues" },
     ...(official
       ? [{ href: "/admin/dashboard", icon: Shield, label: "Control" }]
-      : [{ href: "/notifications", icon: Bell, label: "Alerts" }]),
-    { href: "/profile", icon: User, label: "Profile" },
+      : [{ href: "/profile", icon: User, label: "Profile" }]),
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t-4 border-t-[#f5b800] bg-[#0d2252] pb-safe md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t-4 border-t-[#f5b800] bg-[#0d2252] pb-safe lg:hidden">
       <div className="mx-auto flex h-16 max-w-lg items-center justify-around px-2">
         {items.map(({ href, icon: Icon, label, accent }) => {
           const active = pathname === href;
@@ -176,7 +177,7 @@ export function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                "label-caps flex min-w-[52px] flex-col items-center gap-1 px-2 py-1.5 text-[11px] transition-colors",
+                "label-caps flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-1.5 text-center text-[10px] tracking-[0.06em] transition-colors",
                 active ? "text-[#f5b800]" : "text-white/70"
               )}
             >
@@ -195,9 +196,9 @@ export function SiteFooter() {
   if (pathname.startsWith("/admin") || pathname.startsWith("/login")) return null;
 
   return (
-    <footer className="mt-auto hidden bg-[#0d2252] text-white md:block">
+    <footer className="mt-auto bg-[#0d2252] text-white">
       <div className="platform-edge" />
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 pb-28 pt-8 sm:px-6 md:flex-row md:items-end md:justify-between lg:pb-10 lg:pt-10">
         <div>
           <div className="mb-3 flex items-center gap-3">
             <LogoMark />
@@ -210,7 +211,7 @@ export function SiteFooter() {
             suburban line, Churchgate to Virar.
           </p>
         </div>
-        <div className="label-caps flex flex-wrap gap-6 text-sm text-white/70">
+        <div className="label-caps flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/70">
           <Link href="/" className="transition-colors hover:text-[#f5b800]">
             Feed
           </Link>

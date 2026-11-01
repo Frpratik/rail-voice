@@ -59,7 +59,7 @@ export default function AdminReportsPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card elevated className="flex min-h-[220px] flex-col items-center justify-center gap-3 p-8 text-center">
+        <Card elevated className="flex flex-col items-center justify-center gap-3 p-5 text-center sm:min-h-[220px] sm:p-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent">
             <FileText className="h-6 w-6" />
           </div>
@@ -72,7 +72,7 @@ export default function AdminReportsPage() {
           </Button>
         </Card>
 
-        <Card elevated className="flex min-h-[220px] flex-col items-center justify-center gap-3 p-8 text-center">
+        <Card elevated className="flex flex-col items-center justify-center gap-3 p-5 text-center sm:min-h-[220px] sm:p-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
             <FileSpreadsheet className="h-6 w-6" />
           </div>
@@ -87,9 +87,9 @@ export default function AdminReportsPage() {
       </div>
 
       {/* Official Escalation to WR Super Admin */}
-      <Card elevated className="space-y-4 p-6 border-accent/30 bg-card">
+      <Card elevated className="space-y-4 p-4 sm:p-6 border-accent/30 bg-card">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
@@ -112,7 +112,7 @@ export default function AdminReportsPage() {
           variant="accent"
           disabled={sending || remarks.trim().length < 5}
           onClick={() => void notifyMain()}
-          className="gap-2"
+          className="w-full gap-2 sm:w-auto"
         >
           <Send className="h-4 w-4" />
           {sending ? "Dispatching Report..." : "Dispatch Escalation Report to WR"}

@@ -15,7 +15,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 function Flap({ value, digits = 3 }: { value: number; digits?: number }) {
   const text = String(Math.max(0, value)).padStart(digits, "0");
   return (
-    <span className="inline-flex gap-1 text-4xl sm:text-5xl" aria-label={String(value)}>
+    <span className="inline-flex gap-1 text-[clamp(1.5rem,7vw,3rem)]" aria-label={String(value)}>
       {text.split("").map((d, i) => (
         <span key={i} className="flap" aria-hidden>
           {d}
@@ -35,7 +35,7 @@ function BoardTile({
   alert?: boolean;
 }) {
   return (
-    <div className="board p-4">
+    <div className="board min-w-0 p-3 sm:p-4">
       <p className={cn("label-caps text-xs", alert ? "text-[#ff5a5a] blink" : "text-[#ffb000]/70")}>
         {label}
       </p>
@@ -64,7 +64,7 @@ function DepartureRow({ issue }: { issue: Issue }) {
   return (
     <Link
       href={`/admin/issues?focus=${issue.id}`}
-      className="board-row grid grid-cols-[60px_1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-sm sm:grid-cols-[70px_110px_1fr_170px_60px_70px]"
+      className="board-row grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-3 py-3 text-sm sm:grid-cols-[70px_110px_minmax(0,1fr)_170px_60px_70px] sm:gap-x-4 sm:px-4"
     >
       <span className="font-medium">{issue.location.station.code}</span>
       <span className="hidden text-[#ffb000]/70 sm:block">
@@ -74,7 +74,7 @@ function DepartureRow({ issue }: { issue: Issue }) {
         {issue.is_emergency && <span className="blink mr-2">!</span>}
         {issue.title ?? issue.description.slice(0, 60)}
       </span>
-      <span className={cn("truncate text-xs sm:text-sm", STATUS_COLOR[issue.status] ?? "text-[#ffb000]")}>
+      <span className={cn("col-start-2 truncate text-xs sm:col-start-auto sm:text-sm", STATUS_COLOR[issue.status] ?? "text-[#ffb000]")}>
         {status}
       </span>
       <span className="hidden text-right sm:block">{issue.support_count}</span>
@@ -135,7 +135,7 @@ export default function AdminDashboardPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)
         ) : (
@@ -154,13 +154,13 @@ export default function AdminDashboardPage() {
 
       {!isLoading && kpis && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="board flex items-center justify-between p-4">
+          <div className="board flex items-center justify-between gap-3 p-3 sm:p-4">
             <span className="label-caps text-xs text-[#ffb000]/70">Avg. time to resolve</span>
             <span className="text-xl">
               {kpis.avg_resolution_hours != null ? `${kpis.avg_resolution_hours} h` : "—"}
             </span>
           </div>
-          <div className="board flex items-center justify-between p-4">
+          <div className="board flex items-center justify-between gap-3 p-3 sm:p-4">
             <span className="label-caps text-xs text-[#ffb000]/70">Past SLA time</span>
             <span className={cn("text-xl", kpis.sla_breaches > 0 && "text-[#ff5a5a]")}>
               {kpis.sla_breaches}
@@ -181,7 +181,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="board">
-          <div className="hidden grid-cols-[70px_110px_1fr_170px_60px_70px] gap-x-4 bg-[#10141d] px-4 py-2 text-xs text-[#ffb000]/60 sm:grid">
+          <div className="hidden grid-cols-[70px_110px_minmax(0,1fr)_170px_60px_70px] gap-x-4 bg-[#10141d] px-4 py-2 text-xs text-[#ffb000]/60 sm:grid">
             <span>STN</span>
             <span>NO.</span>
             <span>PROBLEM</span>

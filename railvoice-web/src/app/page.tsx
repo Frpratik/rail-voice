@@ -83,19 +83,19 @@ export default function HomePage() {
     <div className="space-y-8">
       {/* Name board */}
       <section className="name-board">
-        <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="grid grid-cols-1 gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div>
             <p className="label-caps text-sm text-[#10275c]">Western Railway · Suburban</p>
-            <h1 className="text-display mt-1 text-5xl uppercase leading-none sm:text-6xl">
+            <h1 className="text-display mt-1 whitespace-nowrap text-[clamp(1.5rem,8.6vw,3.75rem)] uppercase leading-none">
               Churchgate <span className="text-[#c8102e]">→</span> Virar
             </h1>
             <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-[#101a33]/75">
               Broken lift, dirty platform, unsafe edge? Report it here. Other passengers back the
               report, and the station office sees the most-supported problems first.
             </p>
-            <div className="mt-5 flex flex-wrap gap-3">
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:flex sm:flex-wrap">
               <Link href="/report">
-                <Button variant="accent" size="lg" className="gap-2">
+                <Button variant="accent" size="lg" className="w-full gap-2 sm:w-auto">
                   <Plus className="h-4 w-4" />
                   Report a problem
                 </Button>
@@ -104,7 +104,7 @@ export default function HomePage() {
                 <Button
                   variant="outline"
                   size="lg"
-                  className="border-[#101a33] text-[#101a33] hover:bg-[#101a33] hover:text-white"
+                  className="w-full border-[#101a33] text-[#101a33] hover:bg-[#101a33] hover:text-white sm:w-auto"
                 >
                   My reports
                 </Button>
@@ -129,8 +129,8 @@ export default function HomePage() {
 
       <div className="sleepers" aria-hidden />
 
-      <div className="grid gap-8 lg:grid-cols-[300px_1fr] lg:items-start">
-        <aside className="lg:sticky lg:top-24">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start lg:gap-8">
+        <aside className="min-w-0 lg:sticky lg:top-24">
           <LineMap
             stations={stations}
             counts={counts}
@@ -143,7 +143,7 @@ export default function HomePage() {
           <div className="mb-5 flex flex-col gap-4">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="text-display text-3xl">
+                <h2 className="text-display text-2xl sm:text-3xl">
                   {selectedName ? `${selectedName} station` : "All stations"}
                 </h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">

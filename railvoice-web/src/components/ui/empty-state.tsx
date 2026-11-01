@@ -72,14 +72,14 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-col gap-4 border-b-2 border-foreground/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-6 flex flex-col gap-4 border-b-2 border-foreground/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
         {eyebrow && (
           <p className="label-caps mb-2 inline-block bg-primary px-2 py-0.5 text-xs text-primary-foreground">
             {eyebrow}
           </p>
         )}
-        <h1 className="text-display text-4xl sm:text-5xl">{title}</h1>
+        <h1 className="text-display text-3xl sm:text-5xl">{title}</h1>
         {description && (
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
             {description}

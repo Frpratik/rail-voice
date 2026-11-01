@@ -59,12 +59,12 @@ export default function ProfilePage() {
     >
       <PageHeader eyebrow="Account" title={user.display_name} />
 
-      <Card elevated className="space-y-5 p-6">
+      <Card elevated className="space-y-5 p-4 sm:p-6">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent">
             <UserCheck className="h-7 w-7" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-base font-semibold text-foreground">
               {user.display_name}
             </h2>
@@ -75,17 +75,17 @@ export default function ProfilePage() {
         </div>
 
         <div className="rounded-xl border border-card-border bg-muted/30 p-4 space-y-2 text-xs">
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Account Status:</span>
-            <span className="font-semibold text-success">Verified Active</span>
+            <span className="text-right font-semibold text-success">Verified Active</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Assigned Roles:</span>
-            <span className="font-semibold">{user.roles.join(", ") || "Passenger"}</span>
+            <span className="min-w-0 text-right font-semibold">{user.roles.join(", ") || "Passenger"}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-4">
             <span className="text-muted-foreground">Corridor Division:</span>
-            <span className="font-semibold">Western Railway (Mumbai)</span>
+            <span className="text-right font-semibold">Western Railway (Mumbai)</span>
           </div>
         </div>
 

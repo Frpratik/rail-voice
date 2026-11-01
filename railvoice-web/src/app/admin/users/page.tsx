@@ -24,7 +24,34 @@ export default function AdminUsersPage() {
         description="Authorized Western Railway staff, station managers, and divisional officers."
       />
 
-      <Card className="overflow-hidden p-0">
+      {/* Phones: cards. The table below takes over from md up. */}
+      <div className="space-y-3 md:hidden">
+        {isLoading && (
+          <Card className="py-8 text-center text-sm text-muted-foreground">Loading staff…</Card>
+        )}
+        {!isLoading && officers.length === 0 && (
+          <Card className="py-8 text-center text-sm text-muted-foreground">No staff found.</Card>
+        )}
+        {officers.map((officer) => (
+          <Card key={officer.id} className="space-y-2 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-display min-w-0 text-lg leading-snug">{officer.display_name}</p>
+              <span className="label-caps shrink-0 rounded-sm bg-success/15 px-2 py-0.5 text-xs text-success">
+                Active
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {officer.roles.map((r) => (
+                <Badge key={r} variant="outline">
+                  {r}
+                </Badge>
+              ))}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="hidden overflow-hidden p-0 md:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[600px] text-left text-sm">
             <thead>

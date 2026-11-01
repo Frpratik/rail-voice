@@ -195,7 +195,7 @@ export default function LoginPage() {
         animate={{ opacity: 1, y: 0 }}
         className="relative w-full"
       >
-        <Card elevated className="space-y-6 p-8">
+        <Card elevated className="space-y-6 p-5 sm:p-8">
           <div className="text-center">
             <div className="mb-5 flex justify-center">
               <LogoMark className="!h-12 !w-12" />

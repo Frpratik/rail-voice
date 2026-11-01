@@ -21,7 +21,7 @@ export function LineMap({
   const ordered = [...stations].sort((a, b) => a.sequence_order - b.sequence_order);
 
   return (
-    <div className="border-2 border-foreground/70 bg-card">
+    <div className="min-w-0 overflow-hidden border-2 border-foreground/70 bg-card">
       <div className="flex items-center justify-between bg-primary px-4 py-2.5 text-primary-foreground">
         <p className="label-caps text-sm">Western line</p>
         {selected && (

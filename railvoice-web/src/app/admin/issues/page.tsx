@@ -120,9 +120,54 @@ export default function AdminIssuesPage() {
         ))}
       </div>
 
-      <Card className="overflow-hidden p-0">
+      {/* Phones: cards. The table below takes over from md up. */}
+      <div className="space-y-3 md:hidden">
+        {isLoading && (
+          <Card className="py-8 text-center text-sm text-muted-foreground">Loading queue…</Card>
+        )}
+        {!isLoading && issues.length === 0 && (
+          <Card className="py-8 text-center text-sm text-muted-foreground">
+            No reports in this filter.
+          </Card>
+        )}
+        {issues.map((issue) => (
+          <button
+            key={issue.id}
+            type="button"
+            onClick={() => {
+              setSelectedId(issue.id);
+              setTimeout(
+                () => document.getElementById("triage-actions")?.scrollIntoView({ behavior: "smooth" }),
+                150
+              );
+            }}
+            className={`block w-full border bg-card p-4 text-left ${
+              selectedId === issue.id ? "border-2 border-primary" : "border-card-border"
+            }`}
+          >
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-board text-xs text-muted-foreground">{issue.issue_number}</span>
+              <StatusBadge status={issue.status} />
+            </span>
+            <span className="text-display mt-2 block text-lg leading-snug">
+              {issue.is_emergency && (
+                <AlertTriangle className="mr-1.5 inline h-4 w-4 text-destructive" />
+              )}
+              {issue.title ?? issue.description}
+            </span>
+            <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>{issue.location.station.name}</span>
+              <span>{issue.category?.name ?? "General"}</span>
+              <span>{issue.support_count} backing</span>
+              <span>{formatRelativeTime(issue.created_at)}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <Card className="hidden overflow-hidden p-0 md:block">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[660px] text-left text-sm">
             <thead>
               <tr className="border-b border-card-border bg-muted/40 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 <th className="px-5 py-3.5">Upvotes</th>
@@ -194,13 +239,15 @@ export default function AdminIssuesPage() {
       <AnimatePresence>
         {selected && (
           <motion.div
+            id="triage-actions"
+            className="scroll-mt-4"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
           >
-            <Card elevated className="space-y-5 p-6 border-accent/40 bg-card">
-              <div className="flex items-start justify-between">
-                <div>
+            <Card elevated className="space-y-5 p-4 sm:p-6 border-accent/40 bg-card">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+                <div className="min-w-0">
                   <p className="font-mono text-xs text-muted-foreground uppercase">
                     Triage Actions for {selected.issue_number}
                   </p>
@@ -214,7 +261,7 @@ export default function AdminIssuesPage() {
                 <Link
                   href={`/issues/${selected.id}`}
                   target="_blank"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-accent hover:underline"
                 >
                   Open public ticket <ArrowUpRight className="h-3.5 w-3.5" />
                 </Link>
@@ -235,7 +282,7 @@ export default function AdminIssuesPage() {
                       id="status"
                       value={newStatus}
                       onChange={(e) => setNewStatus(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-card-border bg-card px-3 text-xs"
+                      className="h-11 w-full rounded-xl border border-card-border bg-card px-3 text-xs md:h-9"
                     >
                       <option value="verified">Verified (Confirmed on-ground)</option>
                       <option value="action_started">Action Started (In Progress)</option>
@@ -275,7 +322,7 @@ export default function AdminIssuesPage() {
                       id="assignee"
                       value={assigneeId}
                       onChange={(e) => setAssigneeId(e.target.value)}
-                      className="w-full h-9 rounded-xl border border-card-border bg-card px-3 text-xs"
+                      className="h-11 w-full rounded-xl border border-card-border bg-card px-3 text-xs md:h-9"
                     >
                       <option value="">Select official / supervisor</option>
                       {officers.map((o) => (
@@ -314,7 +361,7 @@ export default function AdminIssuesPage() {
                           e.target.value as "station_manager" | "division" | "zone"
                         )
                       }
-                      className="w-full h-9 rounded-xl border border-card-border bg-card px-3 text-xs"
+                      className="h-11 w-full rounded-xl border border-card-border bg-card px-3 text-xs md:h-9"
                     >
                       <option value="division">Divisional Office (Mumbai MUM)</option>
                       <option value="zone">Zone Headquarters (Churchgate WR)</option>

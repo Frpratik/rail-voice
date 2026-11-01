@@ -90,7 +90,7 @@ export default function NotificationsPage() {
             }`}
           >
             <div className="flex items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">{n.title}</p>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                   {n.body}
