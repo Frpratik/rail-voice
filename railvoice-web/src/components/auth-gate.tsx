@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
@@ -13,18 +13,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const setAuth = useAuthStore((state) => state.setAuth);
   const logout = useAuthStore((state) => state.logout);
   const checkedSession = useRef(false);
-  const hydrated = useSyncExternalStore(
-    (onStoreChange) => {
-      const stopHydrating = useAuthStore.persist.onHydrate(onStoreChange);
-      const stopFinished = useAuthStore.persist.onFinishHydration(onStoreChange);
-      return () => {
-        stopHydrating();
-        stopFinished();
-      };
-    },
-    () => useAuthStore.persist.hasHydrated(),
-    () => false
-  );
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) setHydrated(true);
+    return useAuthStore.persist.onFinishHydration(() => setHydrated(true));
+  }, []);
   const [sessionValid, setSessionValid] = useState(false);
 
   useEffect(() => {
