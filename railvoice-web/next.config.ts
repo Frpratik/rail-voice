@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 /** Backend origin for same-origin /api proxy (avoids CORS + localhost bake-in). */
 const API_PROXY_TARGET =
-  process.env.API_PROXY_TARGET ?? "http://localhost:8000";
+  process.env.API_PROXY_TARGET ??
+  (process.env.NODE_ENV === "production"
+    ? "https://rail-voice.onrender.com"
+    : "http://localhost:8000");
 
 const nextConfig: NextConfig = {
   output: "standalone",
