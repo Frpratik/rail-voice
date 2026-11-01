@@ -76,6 +76,11 @@ async def test_reporter_can_withdraw_until_work_starts(client, bandra_station_id
     assert ok.status_code == 200
     assert ok.json()["data"]["status"] == "withdrawn"
 
+    feed = await client.get(f"{API}/issues", params={"sort": "newest", "limit": 100})
+    assert issue_id not in {i["id"] for i in feed.json()["data"]["items"]}
+    assert (await client.get(f"{API}/issues/{issue_id}", headers=reporter)).status_code == 200
+    assert (await client.get(f"{API}/issues/{issue_id}", headers=other)).status_code == 404
+
     started = await create_issue(client, reporter, bandra_station_id, "Water cooler leaking on platform one")
     await advance(client, admin_headers, started, "verified", "action_started")
     blocked = await client.post(f"{API}/issues/{started}/withdraw", headers=reporter, json={})

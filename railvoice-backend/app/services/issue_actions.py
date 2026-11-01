@@ -195,6 +195,7 @@ async def withdraw_issue(db: AsyncSession, issue: Issue, user: User, reason: str
         raise ValueError("This report is already being worked on and can't be withdrawn")
     previous = issue.status
     issue.status = IssueStatus.WITHDRAWN.value
+    issue.is_public = False  # Off the feed, search and staff queue; the reporter can still open it.
     issue.closed_at = datetime.now(timezone.utc)
     db.add(
         _timeline(
