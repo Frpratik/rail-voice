@@ -3,29 +3,27 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 active:scale-[0.98] select-none",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm border-2 border-transparent font-display text-sm font-semibold uppercase tracking-[0.1em] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45 select-none",
   {
     variants: {
       variant: {
-        default:
-          "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)] hover:bg-primary/90 hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)]",
+        default: "bg-primary text-primary-foreground hover:bg-primary/85",
         accent:
-          "bg-accent text-accent-foreground shadow-[0_2px_12px_var(--glow)] hover:brightness-110 hover:shadow-[0_6px_24px_var(--glow)]",
+          "border-[#101a33] bg-accent text-accent-foreground hover:bg-[#ffd24d]",
         outline:
-          "border border-border bg-card/60 text-foreground hover:bg-muted/70 hover:border-foreground/15",
+          "border-foreground/70 bg-transparent text-foreground hover:bg-foreground hover:text-background",
         ghost: "text-muted-foreground hover:bg-muted hover:text-foreground",
-        secondary: "bg-muted text-foreground hover:bg-muted/80",
-        destructive:
-          "bg-destructive text-white shadow-sm hover:bg-destructive/90",
-        soft: "bg-accent/10 text-accent hover:bg-accent/15",
+        secondary: "bg-muted text-foreground hover:bg-muted/70",
+        destructive: "bg-destructive text-white hover:bg-destructive/90",
+        soft: "bg-accent/20 text-foreground hover:bg-accent/35",
       },
       size: {
         default: "h-11 px-5",
-        sm: "h-9 rounded-lg px-3.5 text-xs",
-        lg: "h-12 rounded-2xl px-7 text-[15px]",
-        xl: "h-14 rounded-2xl px-8 text-base",
-        icon: "h-10 w-10 rounded-xl",
-        "icon-sm": "h-8 w-8 rounded-lg",
+        sm: "h-9 px-3.5 text-xs",
+        lg: "h-12 px-7 text-[15px]",
+        xl: "h-14 px-8 text-base",
+        icon: "h-10 w-10",
+        "icon-sm": "h-8 w-8",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

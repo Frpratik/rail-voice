@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Sora } from "next/font/google";
+import { Barlow, Barlow_Condensed, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { AppHeader, BottomNav, SiteFooter } from "@/components/layout/app-shell";
 import { AuthGate } from "@/components/auth-gate";
@@ -7,10 +7,16 @@ import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import "./globals.css";
 
-const sora = Sora({
-  variable: "--font-sora",
+const display = Barlow_Condensed({
+  variable: "--font-display",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["500", "600", "700"],
+});
+
+const body = Barlow({
+  variable: "--font-body",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 const mono = JetBrains_Mono({
@@ -30,8 +36,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f5f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#07080a" },
+    { media: "(prefers-color-scheme: light)", color: "#10275c" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a1124" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -43,7 +49,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
-      <body className={`${sora.variable} ${mono.variable} font-sans antialiased`}>
+      <body className={`${display.variable} ${body.variable} ${mono.variable} font-sans antialiased`}>
         <ThemeProvider>
           <QueryProvider>
             <AuthGate>

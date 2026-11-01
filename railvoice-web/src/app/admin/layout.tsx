@@ -15,10 +15,10 @@ export default function AdminLayout({
     <div className="fixed inset-0 z-50 flex bg-background">
       <AdminSidebar pathname={pathname} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center justify-between border-b border-card-border bg-card/40 px-5 backdrop-blur lg:h-16 lg:px-8">
+        <header className="flex h-14 items-center justify-between border-b-2 border-foreground/70 bg-card px-5 lg:h-16 lg:px-8">
           <div className="flex items-center gap-3 lg:hidden">
-            <Link href="/admin/dashboard" className="text-sm font-semibold">
-              RailVoice Station Ops
+            <Link href="/admin/dashboard" className="text-display text-lg uppercase">
+              RailVoice Control
             </Link>
           </div>
           <nav className="flex gap-1 overflow-x-auto lg:hidden">
@@ -31,9 +31,9 @@ export default function AdminLayout({
               <Link
                 key={l.href}
                 href={l.href}
-                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
+                className={`shrink-0 label-caps px-2.5 py-1.5 text-xs ${
                   pathname.startsWith(l.href)
-                    ? "bg-muted text-foreground"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground"
                 }`}
               >
@@ -43,9 +43,9 @@ export default function AdminLayout({
           </nav>
           <Link
             href="/"
-            className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            className="label-caps hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline"
           >
-            ← Back to Public Feed
+            ← Public site
           </Link>
         </header>
         <div className="flex-1 overflow-y-auto p-5 sm:p-8">{children}</div>

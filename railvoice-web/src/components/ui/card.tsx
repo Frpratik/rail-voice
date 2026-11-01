@@ -9,10 +9,10 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-card-border bg-card p-5 transition-all duration-300",
+        "rounded-sm border bg-card p-5",
         elevated
-          ? "shadow-[0_8px_40px_rgba(10,11,13,0.08)]"
-          : "shadow-[0_1px_2px_rgba(10,11,13,0.04)]",
+          ? "border-foreground/60 border-t-4 border-t-primary"
+          : "border-card-border",
         className
       )}
       {...props}
@@ -33,7 +33,7 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn("text-[15px] font-semibold leading-snug tracking-tight", className)}
+      className={cn("text-display text-lg leading-snug", className)}
       {...props}
     />
   );

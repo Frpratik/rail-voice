@@ -71,7 +71,7 @@ export default function AdminUsersPage() {
                     Western Railway Mumbai Division
                   </td>
                   <td className="px-5 py-4">
-                    <span className="rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">
+                    <span className="label-caps rounded-sm bg-success/15 px-2 py-0.5 text-xs text-success">
                       Active
                     </span>
                   </td>

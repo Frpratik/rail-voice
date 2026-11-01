@@ -1,47 +1,55 @@
 @import "tailwindcss";
 
+/*
+ * RailVoice theme — Indian Railways signage.
+ * Paper-cream and navy, signal-yellow accents, hazard stripes, ticket cards,
+ * and a dark departure board for operations screens.
+ */
+
 :root {
-  --background: #f4f5f7;
-  --foreground: #0a0b0d;
-  --card: #ffffff;
-  --card-border: rgba(10, 11, 13, 0.08);
-  --primary: #0a0b0d;
-  --primary-foreground: #fafafa;
-  --accent: #e8481a;
-  --accent-foreground: #ffffff;
-  --success: #0f7a62;
-  --warning: #c47a0a;
-  --destructive: #d92d20;
-  --muted: #e8eaee;
-  --muted-foreground: #5c6370;
-  --border: rgba(10, 11, 13, 0.1);
-  --ring: #e8481a;
-  --surface-elevated: #ffffff;
-  --glow: rgba(232, 72, 26, 0.18);
-  --mesh-a: rgba(232, 72, 26, 0.07);
-  --mesh-b: rgba(15, 122, 98, 0.06);
+  --background: #f4f0e6;
+  --foreground: #101a33;
+  --card: #fffdf7;
+  --card-border: rgba(16, 26, 51, 0.2);
+  --primary: #10275c;
+  --primary-foreground: #ffffff;
+  --accent: #f5b800;
+  --accent-foreground: #101a33;
+  --accent-text: #1a45a0;
+  --success: #0e7a3d;
+  --warning: #b86e00;
+  --destructive: #c8102e;
+  --muted: #e9e3d3;
+  --muted-foreground: #565f75;
+  --border: rgba(16, 26, 51, 0.2);
+  --ring: #1a45a0;
+  --surface-elevated: #fffdf7;
+  --glow: transparent;
+  --signal: #f5b800;
+  --ink: #101a33;
 }
 
 .dark {
-  --background: #07080a;
-  --foreground: #f2f3f5;
-  --card: #111318;
-  --card-border: rgba(255, 255, 255, 0.08);
-  --primary: #f2f3f5;
-  --primary-foreground: #0a0b0d;
-  --accent: #ff6a3d;
-  --accent-foreground: #0a0b0d;
-  --success: #2dd4a8;
-  --warning: #f5b941;
-  --destructive: #ff6b6b;
-  --muted: #1a1d24;
-  --muted-foreground: #9aa1ad;
-  --border: rgba(255, 255, 255, 0.1);
-  --ring: #ff6a3d;
-  --surface-elevated: #161920;
-  --glow: rgba(255, 106, 61, 0.22);
-  --mesh-a: rgba(255, 106, 61, 0.1);
-  --mesh-b: rgba(45, 212, 168, 0.06);
+  --background: #0a1124;
+  --foreground: #eef1f8;
+  --card: #111a34;
+  --card-border: rgba(255, 255, 255, 0.16);
+  --primary: #eef1f8;
+  --primary-foreground: #101a33;
+  --accent: #ffc933;
+  --accent-foreground: #101a33;
+  --accent-text: #ffc933;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --destructive: #ff6b78;
+  --muted: #19244a;
+  --muted-foreground: #9ba6c2;
+  --border: rgba(255, 255, 255, 0.16);
+  --ring: #ffc933;
+  --surface-elevated: #16213f;
+  --glow: transparent;
+  --signal: #ffc933;
+  --ink: #eef1f8;
 }
 
 @theme inline {
@@ -61,9 +69,17 @@
   --color-border: var(--border);
   --color-ring: var(--ring);
   --color-surface-elevated: var(--surface-elevated);
-  --font-sans: var(--font-sora);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-mono);
-  --font-display: var(--font-sora);
+  --font-display: var(--font-display);
+
+  /* Signage is square: flatten every rounded-* step. */
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 3px;
+  --radius-3xl: 4px;
 }
 
 * {
@@ -75,70 +91,167 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(ellipse 90% 55% at 10% -10%, var(--mesh-a), transparent 55%),
-    radial-gradient(ellipse 70% 45% at 100% 0%, var(--mesh-b), transparent 50%),
-    radial-gradient(ellipse 50% 40% at 50% 100%, var(--mesh-a), transparent 60%),
-    var(--background);
-  background-attachment: fixed;
+  background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sora), system-ui, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--accent) 28%, transparent);
-  color: var(--foreground);
+  background: var(--signal);
+  color: #101a33;
 }
 
-.glass-card {
-  background: color-mix(in srgb, var(--card) 88%, transparent);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+/* Text that must stay readable: yellow fills, blue ink on light backgrounds. */
+.text-accent,
+.hover\:text-accent:hover,
+.group:hover .group-hover\:text-accent {
+  color: var(--accent-text);
 }
 
-.surface-card {
+.text-display {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  line-height: 1.1;
+}
+
+.label-caps {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.font-board {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Yellow/black hazard strip, as along a platform edge. */
+.platform-edge {
+  height: 6px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--signal) 0 10px,
+    #101a33 10px 20px
+  );
+}
+
+/* Sleeper pattern for section dividers. */
+.sleepers {
+  height: 10px;
+  background:
+    repeating-linear-gradient(90deg, var(--border) 0 3px, transparent 3px 14px) center / 100% 6px no-repeat,
+    linear-gradient(var(--border), var(--border)) center 1px / 100% 1px no-repeat,
+    linear-gradient(var(--border), var(--border)) center 8px / 100% 1px no-repeat;
+}
+
+/* Station name board: white plate, navy border, as on a platform. */
+.name-board {
+  background: #ffffff;
+  color: #101a33;
+  border: 3px solid #10275c;
+  outline: 1px solid #ffffff;
+  outline-offset: -5px;
+}
+
+.dark .name-board {
+  background: #f4f0e6;
+}
+
+/* Printed ticket: stub on the left, perforated edge, punched notches. */
+.ticket {
+  position: relative;
+  overflow: hidden;
   background: var(--card);
   border: 1px solid var(--card-border);
-  box-shadow:
-    0 1px 1px rgba(10, 11, 13, 0.03),
-    0 4px 16px rgba(10, 11, 13, 0.04);
 }
 
-.dark .surface-card {
-  box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.2),
-    0 8px 24px rgba(0, 0, 0, 0.25);
-}
-
-.text-balance {
-  text-wrap: balance;
-}
-
-.noise-overlay {
-  position: relative;
-}
-
-.noise-overlay::after {
+.ticket::before,
+.ticket::after {
   content: "";
-  pointer-events: none;
   position: absolute;
-  inset: 0;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay;
+  left: var(--stub, 84px);
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--background);
+  border: 1px solid var(--card-border);
+  transform: translateX(-50%);
+}
+
+.ticket::before {
+  top: -8px;
+}
+
+.ticket::after {
+  bottom: -8px;
+}
+
+.ticket-perforation {
+  border-left: 2px dashed var(--card-border);
+}
+
+/* Departure board (always dark, in both themes). */
+.board {
+  background: #06080d;
+  color: #ffb000;
+  border: 2px solid #1b2130;
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+.board-row {
+  border-top: 1px solid #1b2130;
+}
+
+.board-row:hover {
+  background: #0d121c;
+}
+
+.flap {
+  position: relative;
+  display: inline-flex;
+  min-width: 1.6ch;
+  justify-content: center;
+  padding: 0.15em 0.2em;
+  background: #10141d;
+  border: 1px solid #262d3d;
+  border-radius: 2px;
+  color: #ffb000;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-weight: 500;
+}
+
+.flap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: #000;
+}
+
+@keyframes blink {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0.25;
+  }
+}
+
+.blink {
+  animation: blink 1.4s steps(1) infinite;
 }
 
 @layer utilities {
   .pb-safe {
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
-  }
-
-  .text-display {
-    font-family: var(--font-sora), system-ui, sans-serif;
-    letter-spacing: -0.03em;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 
   .focus-ring {
@@ -147,6 +260,10 @@ body {
 
   .focus-ring:focus-visible {
     box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }
 

@@ -189,7 +189,6 @@ export default function LoginPage() {
 
   return (
     <div className="relative mx-auto flex min-h-[70vh] max-w-md items-center">
-      <div className="pointer-events-none absolute left-1/2 top-0 h-48 w-48 -translate-x-1/2 rounded-full bg-accent/20 blur-3xl" />
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -198,9 +197,9 @@ export default function LoginPage() {
         <Card elevated className="space-y-6 p-8">
           <div className="text-center">
             <div className="mb-5 flex justify-center">
-              <LogoMark className="!h-12 !w-12 !rounded-2xl" />
+              <LogoMark className="!h-12 !w-12" />
             </div>
-            <h1 className="text-display text-2xl font-semibold tracking-tight">
+            <h1 className="text-display text-4xl uppercase">
               Sign in
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -210,7 +209,7 @@ export default function LoginPage() {
 
           {SHOW_DEMO_ACCOUNTS && (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="label-caps text-xs text-muted-foreground">
                 Demo accounts
               </p>
               <div className="grid gap-2">
@@ -220,9 +219,9 @@ export default function LoginPage() {
                     type="button"
                     disabled={loading}
                     onClick={() => void loginAsDemo(demo)}
-                    className="rounded-2xl border border-card-border bg-background/60 px-4 py-3 text-left transition hover:border-accent/40 hover:bg-accent/5 disabled:opacity-60"
+                    className="rounded-sm border-2 border-foreground/25 bg-background px-4 py-3 text-left transition hover:border-primary hover:bg-muted disabled:opacity-60"
                   >
-                    <p className="text-sm font-semibold tracking-tight">{demo.label}</p>
+                    <p className="text-display text-lg">{demo.label}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{demo.description}</p>
                     <p className="mt-1 font-mono text-[11px] text-muted-foreground">
                       {demo.mobile} · OTP 123456

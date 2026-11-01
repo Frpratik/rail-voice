@@ -35,14 +35,14 @@ export function EmptyState({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "flex flex-col items-center rounded-3xl border border-dashed border-card-border bg-card/50 px-6 py-14 text-center",
+        "flex flex-col items-center rounded-sm border-2 border-dashed border-foreground/30 bg-card px-6 py-14 text-center",
         className
       )}
     >
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-sm border-2 border-foreground/70 bg-accent text-accent-foreground">
         <Icon className="h-6 w-6" strokeWidth={1.75} />
       </div>
-      <h3 className="text-display text-lg font-semibold tracking-tight">{title}</h3>
+      <h3 className="text-display text-2xl">{title}</h3>
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
         {description}
       </p>
@@ -72,16 +72,14 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-8 flex flex-col gap-4 border-b-2 border-foreground/70 pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
         {eyebrow && (
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+          <p className="label-caps mb-2 inline-block bg-primary px-2 py-0.5 text-xs text-primary-foreground">
             {eyebrow}
           </p>
         )}
-        <h1 className="text-display text-3xl font-semibold tracking-tight sm:text-4xl">
-          {title}
-        </h1>
+        <h1 className="text-display text-4xl sm:text-5xl">{title}</h1>
         {description && (
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
             {description}

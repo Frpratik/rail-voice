@@ -81,17 +81,17 @@ export default function StationsDirectoryPage() {
             transition={{ delay: Math.min(index * 0.03, 0.3), duration: 0.3 }}
           >
             <Link href={`/stations/${st.code}`} className="block group">
-              <Card className="p-5 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-foreground/15 group-hover:shadow-md">
-                <div className="flex items-start justify-between">
+              <Card className="p-0 transition-colors group-hover:border-foreground/60">
+                <div className="flex items-start justify-between p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-colors">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary text-primary-foreground group-hover:bg-accent group-hover:text-accent-foreground transition-colors">
                       <TrainFront className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-foreground tracking-tight group-hover:text-accent transition-colors">
+                      <h3 className="text-display text-xl text-foreground group-hover:text-accent transition-colors">
                         {st.name}
                       </h3>
-                      <p className="text-xs text-muted-foreground font-mono">
+                      <p className="font-board text-xs text-muted-foreground">
                         {st.code} · Seq #{st.sequence_order}
                       </p>
                     </div>
@@ -99,12 +99,12 @@ export default function StationsDirectoryPage() {
                   <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
                 </div>
 
-                <div className="mt-4 flex items-center justify-between border-t border-card-border pt-3 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between border-t-2 border-dashed border-card-border bg-muted/50 px-4 py-2.5 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5" />
                     {st.division?.name ?? "Mumbai Division"}
                   </span>
-                  <span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                  <span className="font-board bg-primary px-2 py-0.5 text-primary-foreground">
                     {st.open_issue_count ?? 0} open
                   </span>
                 </div>

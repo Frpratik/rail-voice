@@ -3,18 +3,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase contrast-more:border contrast-more:border-current",
+  "inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-display text-xs font-semibold uppercase tracking-[0.1em]",
   {
     variants: {
       variant: {
-        default: "bg-primary/10 text-primary dark:text-primary-foreground font-semibold",
-        accent: "bg-accent/15 text-accent-foreground dark:text-accent font-semibold",
-        success: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold",
-        warning: "bg-amber-500/15 text-amber-800 dark:text-amber-300 font-semibold",
-        destructive: "bg-rose-500/15 text-rose-700 dark:text-rose-300 font-semibold",
-        muted: "bg-muted text-foreground/80 normal-case tracking-normal font-medium",
-        emergency: "bg-rose-500/20 text-rose-700 dark:text-rose-300 animate-pulse font-bold",
-        outline: "border border-border text-foreground/80 normal-case tracking-normal font-medium",
+        default: "bg-primary text-primary-foreground",
+        accent: "bg-accent text-accent-foreground",
+        success: "bg-success/15 text-success border border-success/40",
+        warning: "bg-warning/15 text-warning border border-warning/40",
+        destructive: "bg-destructive/15 text-destructive border border-destructive/40",
+        muted: "bg-muted text-foreground/80",
+        emergency: "bg-destructive text-white blink",
+        outline: "border border-foreground/40 text-foreground/80",
       },
     },
     defaultVariants: { variant: "default" },
@@ -53,10 +53,10 @@ export function StatusBadge({ status }: { status: string }) {
     variant: "muted" as const,
   };
   return (
-    <Badge variant={cfg.variant} className="gap-1.5 normal-case tracking-normal">
+    <span className="inline-flex shrink-0 items-stretch overflow-hidden whitespace-nowrap rounded-sm border border-foreground/25 bg-card font-display text-xs font-semibold uppercase tracking-[0.1em]">
       <span
         className={cn(
-          "h-1.5 w-1.5 rounded-full",
+          "w-1.5",
           cfg.variant === "success" && "bg-success",
           cfg.variant === "warning" && "bg-warning",
           cfg.variant === "destructive" && "bg-destructive",
@@ -65,7 +65,7 @@ export function StatusBadge({ status }: { status: string }) {
           cfg.variant === "muted" && "bg-muted-foreground"
         )}
       />
-      {cfg.label}
-    </Badge>
+      <span className="px-2 py-0.5">{cfg.label}</span>
+    </span>
   );
 }

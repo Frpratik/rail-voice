@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/admin/dashboard", icon: LayoutDashboard, label: "Overview" },
-  { href: "/admin/issues", icon: Inbox, label: "Issue Triage" },
-  { href: "/admin/reports", icon: FileText, label: "Reports & Escalation" },
-  { href: "/admin/users", icon: Users, label: "User Management" },
+  { href: "/admin/issues", icon: Inbox, label: "Issue queue" },
+  { href: "/admin/reports", icon: FileText, label: "Reports" },
+  { href: "/admin/users", icon: Users, label: "Users" },
 ];
 
 export function AdminSidebar({ pathname }: { pathname: string }) {
@@ -26,18 +26,20 @@ export function AdminSidebar({ pathname }: { pathname: string }) {
   const label = user?.persona_label ?? personaLabel(persona);
 
   return (
-    <aside className="hidden w-[260px] shrink-0 border-r border-card-border bg-card/50 p-5 lg:flex lg:flex-col">
-      <Link href="/" className="mb-6 flex items-center gap-2.5">
+    <aside className="hidden w-[250px] shrink-0 flex-col bg-[#0d2252] text-white lg:flex">
+      <Link href="/" className="flex items-center gap-3 p-5">
         <LogoMark />
         <div>
-          <p className="text-sm font-semibold tracking-tight">RailVoice</p>
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            {label}
+          <p className="text-display text-xl uppercase tracking-[0.04em]">
+            Rail<span className="text-[#f5b800]">Voice</span>
           </p>
+          <p className="label-caps text-[11px] text-white/60">{label}</p>
         </div>
       </Link>
+      <div className="platform-edge" />
 
-      <nav className="flex flex-1 flex-col gap-1.5">
+      <p className="label-caps px-5 pb-2 pt-6 text-[11px] text-white/50">Control room</p>
+      <nav className="flex flex-1 flex-col">
         {links.map(({ href, icon: Icon, label: linkLabel }) => {
           const active = pathname.startsWith(href);
           return (
@@ -45,10 +47,10 @@ export function AdminSidebar({ pathname }: { pathname: string }) {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium tracking-tight transition-all",
+                "label-caps flex items-center gap-3 border-l-4 px-5 py-3 text-sm transition-colors",
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "border-[#f5b800] bg-white/10 text-[#f5b800]"
+                  : "border-transparent text-white/75 hover:bg-white/5 hover:text-white"
               )}
             >
               <Icon className="h-4 w-4" />
@@ -60,10 +62,10 @@ export function AdminSidebar({ pathname }: { pathname: string }) {
 
       <Link
         href="/"
-        className="mt-4 flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="label-caps flex items-center gap-3 border-t border-white/15 px-5 py-4 text-sm text-white/70 transition-colors hover:text-white"
       >
         <LogOut className="h-4 w-4" />
-        Exit to public feed
+        Public site
       </Link>
     </aside>
   );

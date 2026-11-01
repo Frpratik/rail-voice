@@ -8,7 +8,7 @@ export const Input = React.forwardRef<
   <input
     ref={ref}
     className={cn(
-      "flex h-12 w-full rounded-xl border border-border bg-card px-4 text-sm tracking-tight text-foreground shadow-[inset_0_1px_2px_rgba(10,11,13,0.03)] transition-all placeholder:text-muted-foreground/70 hover:border-foreground/15 focus-visible:border-accent/40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/15 disabled:cursor-not-allowed disabled:opacity-50",
+      "flex h-12 w-full rounded-sm border-2 border-foreground/30 bg-card px-4 text-sm text-foreground placeholder:text-muted-foreground/70 hover:border-foreground/50 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50",
       className
     )}
     {...props}
@@ -23,7 +23,7 @@ export const Textarea = React.forwardRef<
   <textarea
     ref={ref}
     className={cn(
-      "flex min-h-[140px] w-full resize-y rounded-xl border border-border bg-card px-4 py-3.5 text-sm leading-relaxed tracking-tight text-foreground shadow-[inset_0_1px_2px_rgba(10,11,13,0.03)] transition-all placeholder:text-muted-foreground/70 hover:border-foreground/15 focus-visible:border-accent/40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/15 disabled:cursor-not-allowed disabled:opacity-50",
+      "flex min-h-[140px] w-full resize-y rounded-sm border-2 border-foreground/30 bg-card px-4 py-3.5 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 hover:border-foreground/50 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50",
       className
     )}
     {...props}
@@ -38,7 +38,7 @@ export function Label({
   return (
     <label
       className={cn(
-        "mb-2 block text-[13px] font-medium tracking-tight text-foreground/80",
+        "label-caps mb-2 block text-xs text-foreground/80",
         className
       )}
       {...props}
@@ -54,7 +54,7 @@ export function Select({
   return (
     <select
       className={cn(
-        "flex h-12 w-full appearance-none rounded-xl border border-border bg-card bg-[length:16px] bg-[right_14px_center] bg-no-repeat px-4 pr-10 text-sm tracking-tight text-foreground shadow-[inset_0_1px_2px_rgba(10,11,13,0.03)] transition-all hover:border-foreground/15 focus-visible:border-accent/40 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/15 disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-12 w-full appearance-none rounded-sm border-2 border-foreground/30 bg-card bg-[length:16px] bg-[right_14px_center] bg-no-repeat px-4 pr-10 text-sm text-foreground hover:border-foreground/50 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       style={{

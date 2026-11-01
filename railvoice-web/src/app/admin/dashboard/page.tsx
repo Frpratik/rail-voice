@@ -2,62 +2,86 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { motion } from "framer-motion";
-import {
-  AlertTriangle,
-  ArrowUpRight,
-  CheckCircle2,
-  Clock3,
-  FileText,
-  Inbox,
-  Shield,
-} from "lucide-react";
-import { IssueCard } from "@/components/issues/issue-card";
+import { ArrowUpRight, FileText, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import type { Issue } from "@/lib/types";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
-function StatCard({
+/** A number shown as individual split-flap digits. */
+function Flap({ value, digits = 3 }: { value: number; digits?: number }) {
+  const text = String(Math.max(0, value)).padStart(digits, "0");
+  return (
+    <span className="inline-flex gap-1 text-4xl sm:text-5xl" aria-label={String(value)}>
+      {text.split("").map((d, i) => (
+        <span key={i} className="flap" aria-hidden>
+          {d}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function BoardTile({
   label,
   value,
-  icon: Icon,
-  tone,
+  alert,
 }: {
   label: string;
-  value: number | string;
-  icon: React.ElementType;
-  tone?: "default" | "warn" | "ok" | "danger";
+  value: number;
+  alert?: boolean;
 }) {
   return (
-    <Card
-      className={cn(
-        "relative overflow-hidden p-5",
-        tone === "danger" && "border-destructive/30",
-        tone === "warn" && "border-warning/25",
-        tone === "ok" && "border-success/25"
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          {label}
-        </p>
-        <span
-          className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl",
-            tone === "danger" && "bg-destructive/10 text-destructive",
-            tone === "warn" && "bg-warning/10 text-warning",
-            tone === "ok" && "bg-success/10 text-success",
-            (!tone || tone === "default") && "bg-muted text-muted-foreground"
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </span>
+    <div className="board p-4">
+      <p className={cn("label-caps text-xs", alert ? "text-[#ff5a5a] blink" : "text-[#ffb000]/70")}>
+        {label}
+      </p>
+      <div className="mt-3">
+        <Flap value={value} />
       </div>
-      <p className="text-display mt-4 text-3xl font-semibold tracking-tight">{value}</p>
-    </Card>
+    </div>
+  );
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  verified: "text-[#7dd3fc]",
+  assigned: "text-[#7dd3fc]",
+  action_started: "text-[#ffb000]",
+  work_in_progress: "text-[#ffb000]",
+  completed: "text-[#4ade80]",
+  closed: "text-[#4ade80]",
+  forwarded_division: "text-[#f0abfc]",
+  forwarded_zone: "text-[#f0abfc]",
+  forwarded_station_manager: "text-[#f0abfc]",
+  rejected: "text-[#ff5a5a]",
+};
+
+function DepartureRow({ issue }: { issue: Issue }) {
+  const status = issue.status.replace(/_/g, " ").toUpperCase();
+  return (
+    <Link
+      href={`/admin/issues?focus=${issue.id}`}
+      className="board-row grid grid-cols-[60px_1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 text-sm sm:grid-cols-[70px_110px_1fr_170px_60px_70px]"
+    >
+      <span className="font-medium">{issue.location.station.code}</span>
+      <span className="hidden text-[#ffb000]/70 sm:block">
+        {issue.issue_number.replace("RV-WR-", "")}
+      </span>
+      <span className={cn("truncate", issue.is_emergency && "text-[#ff5a5a]")}>
+        {issue.is_emergency && <span className="blink mr-2">!</span>}
+        {issue.title ?? issue.description.slice(0, 60)}
+      </span>
+      <span className={cn("truncate text-xs sm:text-sm", STATUS_COLOR[issue.status] ?? "text-[#ffb000]")}>
+        {status}
+      </span>
+      <span className="hidden text-right sm:block">{issue.support_count}</span>
+      <span className="hidden text-right text-[#ffb000]/60 sm:block">
+        {formatRelativeTime(issue.created_at)}
+      </span>
+    </Link>
   );
 }
 
@@ -71,15 +95,15 @@ export default function AdminDashboardPage() {
   if (error) {
     return (
       <Card elevated className="mx-auto max-w-lg p-10 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center border-2 border-foreground/70 bg-accent text-accent-foreground">
           <Shield className="h-6 w-6" />
         </div>
-        <p className="text-lg font-semibold tracking-tight">Official access required</p>
+        <p className="text-display text-2xl">Staff access only</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Sign in with an authorized Station Admin or Railway Authority account.
+          Sign in with a station admin or main admin account to open the control room.
         </p>
         <Link href="/login" className="mt-6 inline-block">
-          <Button variant="accent">Sign in to console</Button>
+          <Button variant="accent">Sign in</Button>
         </Link>
       </Card>
     );
@@ -91,19 +115,19 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Station Operations"
-        title="Command Dashboard"
-        description="Review citizen grievances, prioritize urgent safety hazards, and escalate reports to Western Railway."
+        eyebrow="Control room"
+        title="Station overview"
+        description="What is open, what is being worked on, and what needs a decision today."
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/admin/reports">
               <Button variant="outline" className="gap-1.5">
-                <FileText className="h-4 w-4" /> Generate Report
+                <FileText className="h-4 w-4" /> Reports
               </Button>
             </Link>
             <Link href="/admin/issues">
               <Button variant="accent" className="gap-1.5">
-                Open Triage Queue
+                Open queue
                 <ArrowUpRight className="h-4 w-4" />
               </Button>
             </Link>
@@ -113,76 +137,72 @@ export default function AdminDashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-2xl" />
-          ))
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)
         ) : (
           <>
-            <StatCard label="Open Grievances" value={kpis?.open_issues ?? 0} icon={Inbox} />
-            <StatCard
-              label="Action In Progress"
-              value={kpis?.in_progress ?? 0}
-              icon={Clock3}
-              tone="warn"
-            />
-            <StatCard
-              label="Resolved Today"
-              value={kpis?.resolved_today ?? 0}
-              icon={CheckCircle2}
-              tone="ok"
-            />
-            <StatCard
-              label="Emergency Hazards"
+            <BoardTile label="Open" value={kpis?.open_issues ?? 0} />
+            <BoardTile label="In progress" value={kpis?.in_progress ?? 0} />
+            <BoardTile label="Resolved today" value={kpis?.resolved_today ?? 0} />
+            <BoardTile
+              label="Emergency"
               value={kpis?.emergency_open ?? 0}
-              icon={AlertTriangle}
-              tone={(kpis?.emergency_open ?? 0) > 0 ? "danger" : "default"}
+              alert={(kpis?.emergency_open ?? 0) > 0}
             />
           </>
         )}
       </div>
 
-      <section>
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-display text-lg font-semibold tracking-tight">
-              Top Community-Supported Issues
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Issues requiring immediate station review and operational action
-            </p>
+      {!isLoading && kpis && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="board flex items-center justify-between p-4">
+            <span className="label-caps text-xs text-[#ffb000]/70">Avg. time to resolve</span>
+            <span className="text-xl">
+              {kpis.avg_resolution_hours != null ? `${kpis.avg_resolution_hours} h` : "—"}
+            </span>
           </div>
+          <div className="board flex items-center justify-between p-4">
+            <span className="label-caps text-xs text-[#ffb000]/70">Past SLA time</span>
+            <span className={cn("text-xl", kpis.sla_breaches > 0 && "text-[#ff5a5a]")}>
+              {kpis.sla_breaches}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <section>
+        <div className="mb-3 flex items-end justify-between">
+          <h2 className="text-display text-2xl">Most supported reports</h2>
           <Link
             href="/admin/issues"
-            className="text-xs font-semibold uppercase tracking-[0.14em] text-accent transition-colors hover:underline"
+            className="label-caps text-xs text-accent hover:underline"
           >
-            View all queue →
+            Full queue →
           </Link>
         </div>
 
-        {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-40 rounded-2xl" />
-            ))}
+        <div className="board">
+          <div className="hidden grid-cols-[70px_110px_1fr_170px_60px_70px] gap-x-4 bg-[#10141d] px-4 py-2 text-xs text-[#ffb000]/60 sm:grid">
+            <span>STN</span>
+            <span>NO.</span>
+            <span>PROBLEM</span>
+            <span>STATUS</span>
+            <span className="text-right">SUPP</span>
+            <span className="text-right">AGE</span>
           </div>
-        ) : topIssues.length === 0 ? (
-          <Card className="p-8 text-center text-muted-foreground">
-            <p className="text-sm">No open issues requiring triage at your assigned station.</p>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {topIssues.map((issue, i) => (
-              <motion.div
-                key={issue.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: i * 0.04 }}
-              >
-                <IssueCard issue={issue} href={`/admin/issues?focus=${issue.id}`} />
-              </motion.div>
-            ))}
-          </div>
-        )}
+          {isLoading ? (
+            <div className="space-y-px p-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 bg-[#10141d]" />
+              ))}
+            </div>
+          ) : topIssues.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-[#ffb000]/70">
+              NO OPEN REPORTS FOR YOUR STATIONS
+            </p>
+          ) : (
+            topIssues.map((issue) => <DepartureRow key={issue.id} issue={issue} />)
+          )}
+        </div>
       </section>
     </div>
   );

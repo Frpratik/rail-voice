@@ -109,10 +109,10 @@ export default function AdminIssuesPage() {
               setStatusFilter(tab.value);
               setSelectedId(null);
             }}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold tracking-tight transition-all ${
+            className={`shrink-0 label-caps border-2 px-3 py-1.5 text-xs transition-colors ${
               statusFilter === tab.value
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-card text-muted-foreground ring-1 ring-card-border hover:text-foreground"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-foreground/30 bg-card text-muted-foreground hover:border-foreground/60 hover:text-foreground"
             }`}
           >
             {tab.label}

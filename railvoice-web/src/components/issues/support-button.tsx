@@ -22,10 +22,10 @@ export function SupportButton({
     <div className={cn("flex flex-col items-stretch gap-4", className)}>
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="label-caps text-xs text-muted-foreground">
             Community support
           </p>
-          <p className="mt-1 text-display text-3xl font-semibold tracking-tight">
+          <p className="font-board mt-1 text-4xl">
             <motion.span
               key={supportCount}
               initial={{ y: 8, opacity: 0 }}
@@ -36,7 +36,7 @@ export function SupportButton({
             </motion.span>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            voices amplifying this issue
+            passengers have backed this report
           </p>
         </div>
       </div>
@@ -48,7 +48,7 @@ export function SupportButton({
         onClick={onSupport}
       >
         <ThumbsUp className="h-4 w-4" />
-        {supported ? "You’re supporting this" : "Support this issue"}
+        {supported ? "You’ve backed this" : "Back this report"}
       </Button>
     </div>
   );

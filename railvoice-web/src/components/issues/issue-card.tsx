@@ -1,17 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { AlertTriangle, Flame, MessageCircle, ThumbsUp } from "lucide-react";
+import { AlertTriangle, MessageCircle, ThumbsUp } from "lucide-react";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import type { Issue } from "@/lib/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
+/** An issue drawn as a railway ticket: station stub, perforation, details. */
 export function IssueCard({
   issue,
   href,
   className,
-  index = 0,
 }: {
   issue: Issue;
   href?: string;
@@ -20,70 +19,70 @@ export function IssueCard({
 }) {
   const targetHref = href ?? `/issues/${issue.id}`;
   const highSupport = issue.support_count >= 25;
+  const stationCode = issue.location?.station?.code ?? "WR";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.04, 0.24), duration: 0.35 }}
-    >
-      <Link href={targetHref} className="block group">
-        <article
+    <Link href={targetHref} className="group block">
+      <article
+        style={{ "--stub": "84px" } as React.CSSProperties}
+        className={cn(
+          "ticket flex transition-colors group-hover:border-foreground/60",
+          issue.is_emergency && "border-destructive",
+          className
+        )}
+      >
+        <div
           className={cn(
-            "relative overflow-hidden rounded-2xl border border-card-border bg-card p-5 transition-all duration-300",
-            "hover:-translate-y-0.5 hover:border-foreground/12 hover:shadow-[0_16px_48px_rgba(10,11,13,0.08)]",
-            issue.is_emergency && "border-l-[3px] border-l-destructive",
-            className
+            "flex w-[84px] shrink-0 flex-col items-center justify-between px-2 py-4 text-center",
+            issue.is_emergency ? "bg-destructive text-white" : "bg-primary text-primary-foreground"
           )}
         >
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {highSupport && (
-              <Badge variant="accent">
-                <Flame className="h-3 w-3" />
-                High Priority
-              </Badge>
-            )}
+          <span className="label-caps text-[10px] opacity-70">Station</span>
+          <span className="text-display text-3xl tracking-wide">{stationCode}</span>
+          <span className="font-board text-[10px] leading-tight opacity-80">
+            {issue.issue_number.replace("RV-", "")}
+          </span>
+        </div>
+
+        <div className="ticket-perforation min-w-0 flex-1 p-4 pl-5">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             {issue.is_emergency && (
-              <Badge variant="destructive" className="flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> Urgent Hazard
+              <Badge variant="emergency">
+                <AlertTriangle className="h-3 w-3" /> Urgent hazard
               </Badge>
             )}
-            <Badge variant="muted">
-              {issue.location?.station?.code || issue.location?.station?.name || "Western Railway"}
-            </Badge>
-            {issue.category && (
-              <Badge variant="outline">{issue.category.name}</Badge>
-            )}
+            {highSupport && !issue.is_emergency && <Badge variant="accent">Many reports</Badge>}
+            {issue.category && <Badge variant="outline">{issue.category.name}</Badge>}
           </div>
 
-          <h3 className="text-display line-clamp-2 text-[16px] font-semibold leading-snug tracking-tight transition-colors group-hover:text-accent">
+          <h3 className="text-display line-clamp-2 text-xl leading-snug group-hover:text-accent">
             {issue.title ?? issue.description.slice(0, 90)}
           </h3>
 
-          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
             {issue.description}
           </p>
 
-          <div className="mt-5 flex items-center justify-between gap-3 border-t border-card-border pt-4">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-card-border pt-3">
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5 font-medium text-foreground/80">
-                <ThumbsUp className="h-3.5 w-3.5 text-accent" />
-                {issue.support_count} Upvotes
+              <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                <ThumbsUp className="h-3.5 w-3.5" />
+                <span className="font-board">{issue.support_count}</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <MessageCircle className="h-3.5 w-3.5" />
-                {issue.comment_count}
+                <span className="font-board">{issue.comment_count}</span>
               </span>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <StatusBadge status={issue.status} />
-              <time className="hidden text-xs text-muted-foreground sm:inline">
+              <time className="font-board hidden text-xs text-muted-foreground sm:inline">
                 {formatRelativeTime(issue.created_at)}
               </time>
             </div>
           </div>
-        </article>
-      </Link>
-    </motion.div>
+        </div>
+      </article>
+    </Link>
   );
 }
