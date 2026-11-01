@@ -17,17 +17,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://railvoice:railvoice@localhost:5432/railvoice"
     database_url_sync: str = "postgresql://railvoice:railvoice@localhost:5432/railvoice"
     redis_url: str = "redis://localhost:6379/0"
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/2"
-    celery_enabled: bool = True
 
-    openai_api_key: str = ""
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
-    duplicate_similarity_threshold: float = 0.82
-    local_duplicate_similarity_threshold: float = 0.45
-    spam_auto_hold_threshold: float = 0.85
-    ai_sync_on_create: bool = True
 
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     otp_mock_mode: bool = True

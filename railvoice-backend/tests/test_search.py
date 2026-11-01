@@ -5,7 +5,7 @@ API = "/api/v1"
 
 
 @pytest.mark.asyncio
-async def test_hybrid_search_finds_issue(
+async def test_text_search_finds_issue(
     client: AsyncClient,
     auth_headers: dict,
     bandra_station_id: str,
@@ -17,8 +17,6 @@ async def test_hybrid_search_finds_issue(
         json={
             "description": description,
             "station_id": bandra_station_id,
-            "force_create": True,
-            "divergence_reason": "Search integration test seed issue",
         },
     )
     assert create.status_code == 201
@@ -27,18 +25,5 @@ async def test_hybrid_search_finds_issue(
     assert search.status_code == 200
     results = search.json()["data"]["results"]
     assert len(results) >= 1
-    assert results[0]["match_type"] in {"semantic", "keyword", "hybrid"}
+    assert results[0]["match_type"] in {"text"}
 
-
-@pytest.mark.asyncio
-async def test_semantic_search_endpoint(client: AsyncClient, bandra_station_id: str):
-    response = await client.post(
-        f"{API}/search/semantic",
-        json={
-            "query": "missing dustbin platform bridge",
-            "station_id": bandra_station_id,
-            "limit": 5,
-        },
-    )
-    assert response.status_code == 200
-    assert "results" in response.json()["data"]

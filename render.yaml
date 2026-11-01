@@ -18,8 +18,6 @@ services:
         value: "false"
       - key: PYTHON_VERSION
         value: "3.12.8"
-      - key: CELERY_ENABLED
-        value: "false"
       - key: OTP_MOCK_MODE
         value: "true"
       - key: OTP_MOCK_CODE
@@ -45,8 +43,4 @@ services:
       - key: PUBLIC_BASE_URL
         sync: false
       - key: REDIS_URL
-        value: ""
-      - key: CELERY_BROKER_URL
-        value: ""
-      - key: CELERY_RESULT_BACKEND
         value: ""

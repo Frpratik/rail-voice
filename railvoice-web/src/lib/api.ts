@@ -308,7 +308,7 @@ export const api = {
         ApiEnvelope<{
           issue_id: string;
           support_count: number;
-          subscribed_to_updates: boolean;
+          subscribed_to_updates?: boolean;
           message: string;
         }>
       >(`/issues/${id}/support`, { method: "POST" }),

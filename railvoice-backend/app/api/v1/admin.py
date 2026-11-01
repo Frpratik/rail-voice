@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.deps import get_db, require_official
 from app.core.enums import IssueStatus, TERMINAL_STATUSES, TimelineEventType, Visibility
 from app.models.issue import Issue, IssueTimelineEvent
@@ -118,12 +119,32 @@ async def admin_dashboard(
             officer,
         )
     )
+    avg_seconds = await db.scalar(
+        _scoped_issues(
+            select(func.avg(func.extract("epoch", Issue.resolved_at - Issue.created_at)))
+            .select_from(Issue)
+            .where(Issue.resolved_at.is_not(None)),
+            officer,
+        )
+    )
+    open_rows = await db.execute(
+        _scoped_issues(
+            select(Issue.severity, Issue.created_at).where(Issue.status.in_(open_statuses)),
+            officer,
+        )
+    )
+    now = datetime.now(timezone.utc)
+    sla_breaches = sum(
+        1
+        for severity, created_at in open_rows.all()
+        if created_at and (now - created_at).total_seconds() > settings.sla_hours_for_severity(severity or 3) * 3600
+    )
     kpis = DashboardKPIs(
         open_issues=open_count or 0,
         in_progress=in_progress or 0,
         resolved_today=resolved_today or 0,
-        avg_resolution_hours=None,
-        sla_breaches=0,
+        avg_resolution_hours=round(float(avg_seconds) / 3600, 1) if avg_seconds is not None else None,
+        sla_breaches=sla_breaches,
         emergency_open=emergency or 0,
     )
     top = await db.execute(
@@ -193,7 +214,7 @@ async def update_issue_status(
     issue.status = body.status
     if body.status == IssueStatus.CLOSED.value:
         issue.closed_at = datetime.now(timezone.utc)
-    if body.status in {IssueStatus.COMPLETED.value, IssueStatus.RESOLVED.value if hasattr(IssueStatus, 'RESOLVED') else 'resolved'}:
+    if body.status == IssueStatus.COMPLETED.value:
         issue.resolved_at = datetime.now(timezone.utc)
 
     event = IssueTimelineEvent(
@@ -311,6 +332,8 @@ async def escalate_issue(
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
     enforce_issue_location_scope(officer, issue)
+    if issue.status in {st.value for st in TERMINAL_STATUSES}:
+        raise HTTPException(status_code=422, detail=f"Cannot escalate a {issue.status} issue")
     target_status = ESCALATE_STATUS[body.target]
     from_status = issue.status
     issue.status = target_status
@@ -350,17 +373,27 @@ async def list_officers(
     _: Annotated[User, Depends(require_official)],
 ) -> Envelope[dict]:
     from app.core.enums import OFFICIAL_ROLES
-    from app.models.user import UserRole
+    from app.models.user import Role, UserRole
 
-    result = await db.execute(
+    official_codes = {r.value for r in OFFICIAL_ROLES}
+    query = (
         select(User)
         .options(selectinload(User.roles).selectinload(UserRole.role))
-        .where(User.is_active.is_(True), User.is_anonymous.is_(False))
-        .limit(100)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            User.is_active.is_(True),
+            User.is_anonymous.is_(False),
+            User.deleted_at.is_(None),
+            UserRole.revoked_at.is_(None),
+            Role.code.in_(official_codes),
+        )
+        .distinct()
+        .limit(200)
     )
+    result = await db.execute(query)
     officers = []
-    official_codes = {r.value for r in OFFICIAL_ROLES}
-    for user in result.scalars().all():
+    for user in result.scalars().unique().all():
         roles = [ur.role.code for ur in user.roles if ur.revoked_at is None and ur.role]
         if any(r in official_codes for r in roles):
             officers.append(
@@ -453,7 +486,9 @@ async def notify_main_admin(
 
     main_role = (
         await db.execute(select(Role).where(Role.code == RoleCode.SUPER_ADMIN.value))
-    ).scalar_one()
+    ).scalar_one_or_none()
+    if main_role is None:
+        raise HTTPException(status_code=404, detail="No Main Admin users found")
     main_users = await db.execute(
         select(User)
         .options(selectinload(User.roles).selectinload(UserRole.role))

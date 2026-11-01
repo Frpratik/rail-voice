@@ -13,7 +13,7 @@ Internet
    ├─ /api/       → api (Gunicorn/Uvicorn :8000)
    └─ /media/     → shared upload volume
          │
-   postgres (pgvector) · redis · celery worker · celery beat
+   postgres · redis
 ```
 
 ## 1. Prerequisites

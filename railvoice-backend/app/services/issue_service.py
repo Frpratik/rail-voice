@@ -4,7 +4,9 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from fastapi import HTTPException, status
+from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -112,6 +114,39 @@ class AuthService:
         await db.flush()
         return user
 
+    async def upsert_google_user(
+        self,
+        db: AsyncSession,
+        *,
+        google_id: str,
+        email: str | None,
+        name: str,
+        avatar_url: str | None,
+    ) -> User:
+        user = (await db.execute(select(User).where(User.google_id == google_id))).scalar_one_or_none()
+        if not user and email:
+            user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+        if user:
+            if not user.is_active or user.deleted_at is not None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+            user.google_id = user.google_id or google_id
+            if avatar_url:
+                user.avatar_url = avatar_url
+        else:
+            user = User(
+                google_id=google_id,
+                email=email,
+                display_name=(name or "Google User")[:100],
+                avatar_url=avatar_url,
+                is_active=True,
+            )
+            db.add(user)
+            await db.flush()
+        user.is_verified = True
+        user.last_login_at = datetime.now(timezone.utc)
+        await self._ensure_passenger_role(db, user)
+        return user
+
     async def _ensure_passenger_role(self, db: AsyncSession, user: User) -> None:
         from app.core.enums import RoleCode
 
@@ -146,7 +181,7 @@ class AuthService:
         await db.flush()
         return access_token, raw_refresh, expires_at
 
-    async def refresh_tokens(
+    async def rotate_refresh_token(
         self, db: AsyncSession, raw_refresh: str
     ) -> tuple[User, str, str]:
         token_hash = hash_value(raw_refresh)
@@ -187,12 +222,8 @@ class AuthService:
 class IssueService:
     async def generate_issue_number(self, db: AsyncSession, zone_code: str) -> str:
         year = datetime.now(timezone.utc).year
-        prefix = f"RV-{zone_code}-{year}-"
-        result = await db.execute(
-            select(func.count()).select_from(Issue).where(Issue.issue_number.like(f"{prefix}%"))
-        )
-        count = (result.scalar() or 0) + 1
-        return f"{prefix}{count:06d}"
+        seq = await db.scalar(text("SELECT nextval('issue_number_seq')"))
+        return f"RV-{zone_code}-{year}-{seq:06d}"
 
     async def create_issue(
         self,
@@ -285,19 +316,22 @@ class IssueService:
 
     async def support_issue(self, db: AsyncSession, user: User, issue_id: uuid.UUID) -> IssueSupport:
         issue = await db.get(Issue, issue_id)
-        if not issue:
+        if not issue or not issue.is_public:
             raise ValueError("Issue not found")
 
-        existing = await db.execute(
-            select(IssueSupport).where(IssueSupport.issue_id == issue_id, IssueSupport.user_id == user.id)
-        )
-        if existing.scalar_one_or_none():
-            raise ValueError("Already supported")
-
         support = IssueSupport(issue_id=issue_id, user_id=user.id)
-        db.add(support)
-        issue.support_count += 1
-        await db.flush()
+        try:
+            # Savepoint so a concurrent duplicate hits the unique constraint cleanly.
+            async with db.begin_nested():
+                db.add(support)
+                await db.flush()
+        except IntegrityError as exc:
+            raise ValueError("Already supported") from exc
+
+        await db.execute(
+            update(Issue).where(Issue.id == issue_id).values(support_count=Issue.support_count + 1)
+        )
+        await db.refresh(issue)
         return support
 
     async def get_issue_detail(self, db: AsyncSession, issue_id: uuid.UUID) -> Issue | None:

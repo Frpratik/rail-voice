@@ -70,11 +70,3 @@ async def bandra_station_id(client: AsyncClient) -> str:
     assert stations, "Bandra station must exist in seed data"
     return stations[0]["id"]
 
-
-@pytest.fixture(scope="session")
-def ai_duplicate_pairs():
-    import json
-    from pathlib import Path
-
-    path = Path(__file__).parent / "fixtures" / "ai_duplicate_pairs.json"
-    return json.loads(path.read_text(encoding="utf-8"))

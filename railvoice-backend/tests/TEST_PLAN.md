@@ -12,7 +12,7 @@
 ## Run Locally
 
 ```bash
-# Requires PostgreSQL (pgvector) + Redis + seed
+# Requires PostgreSQL + Redis + seed
 cd railvoice-backend
 alembic upgrade head
 python -m app.scripts.seed
@@ -22,15 +22,13 @@ PYTHONPATH=. pytest -v --cov=app
 ## Critical Paths (Must Pass)
 
 1. **Auth** — OTP request/verify, anonymous session, logout guard
-2. **Duplicate detection** — paraphrase match → support (not duplicate create)
-3. **Issue lifecycle** — create → admin verify
-4. **Search** — hybrid semantic search returns results
-5. **Admin RBAC** — passenger 403, official 200
-6. **AI eval** — precision/recall ≥ 85% on fixture pairs
+2. **Issue lifecycle** — create → support → admin verify
+3. **Search** — multi-term text search returns results
+4. **Admin RBAC** — passenger 403, official 200
 
 ## E2E Manual Checklist
 
-- [ ] Report issue at Bandra → see duplicate sheet
+- [ ] Report issue at Bandra → appears in feed
 - [ ] Support existing issue → count increments
 - [ ] Login OTP → profile shows user
 - [ ] Admin dashboard loads for official

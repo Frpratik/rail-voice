@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import get_db
 from app.models.issue import Issue
+from app.models.location import Station
 from app.schemas.common import Envelope, Meta
 from app.schemas.mappers import issue_to_out
 
@@ -23,15 +24,19 @@ async def text_search(
     station_id: uuid.UUID | None = None,
     limit: int = Query(20, ge=1, le=50),
 ) -> Envelope[dict]:
-    pattern = f"%{q.strip()}%"
-    conditions = [
-        Issue.is_public.is_(True),
-        or_(
-            Issue.title.ilike(pattern),
-            Issue.description.ilike(pattern),
-            Issue.issue_number.ilike(pattern),
-        ),
-    ]
+    terms = [t for t in q.split() if t][:8]
+    conditions = [Issue.is_public.is_(True)]
+    for term in terms:
+        escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        conditions.append(
+            or_(
+                Issue.title.ilike(pattern, escape="\\"),
+                Issue.description.ilike(pattern, escape="\\"),
+                Issue.issue_number.ilike(pattern, escape="\\"),
+                Issue.station.has(Station.name.ilike(pattern, escape="\\")),
+            )
+        )
     if station_id:
         conditions.append(Issue.station_id == station_id)
 
@@ -59,14 +64,3 @@ async def text_search(
     ]
     return Envelope(data={"results": payload}, meta=Meta())
 
-
-@router.post("/semantic")
-async def semantic_search(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    body: dict,
-) -> Envelope[dict]:
-    q = body.get("query", "")
-    station_id = body.get("station_id")
-    limit = min(int(body.get("limit", 20)), 50)
-    sid = uuid.UUID(station_id) if station_id else None
-    return await text_search(db=db, q=q, station_id=sid, limit=limit)

@@ -16,7 +16,6 @@
 | 2 | [System Architecture](02-ARCHITECTURE.md) | Engineers, architects |
 | 3 | [Data Model](03-DATA-MODEL.md) | Backend engineers, DBAs |
 | 4 | [API Reference](04-API-REFERENCE.md) | Frontend, integrators, QA |
-| 5 | [AI Module](05-AI-MODULE.md) | ML/backend engineers |
 | 6 | [Authentication & Security](06-AUTH-SECURITY.md) | Security, backend |
 | 7 | [Frontend Application](07-FRONTEND.md) | Frontend engineers, designers |
 | 8 | [Deployment](08-DEPLOYMENT.md) | DevOps, release owners |

@@ -32,8 +32,6 @@ async def test_admin_issue_status_update(
         json={
             "description": "Water leakage from ceiling at Bandra platform 3 waiting area",
             "station_id": bandra_station_id,
-            "force_create": True,
-            "divergence_reason": "Admin lifecycle integration test",
         },
     )
     assert create.status_code == 201
@@ -52,12 +50,7 @@ async def test_admin_issue_status_update(
 
 
 @pytest.mark.asyncio
-async def test_daily_ai_summary(client: AsyncClient, admin_headers: dict):
-    response = await client.get(
-        f"{API}/admin/analytics/ai-insights/daily-summary",
-        headers=admin_headers,
-    )
+async def test_admin_officers_list(client: AsyncClient, admin_headers: dict):
+    response = await client.get(f"{API}/admin/officers", headers=admin_headers)
     assert response.status_code == 200
-    data = response.json()["data"]
-    assert "narrative" in data
-    assert "stats" in data
+    assert len(response.json()["data"]["items"]) >= 2

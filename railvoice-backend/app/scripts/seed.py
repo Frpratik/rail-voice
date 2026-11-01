@@ -5,7 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import create_engine, select, delete
+import sys
+
+from sqlalchemy import create_engine, func, select, delete
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -102,7 +104,12 @@ CATEGORIES = [
 ]
 
 
-def seed(session: Session) -> None:
+def seed(session: Session, reset: bool = False) -> None:
+    """Seed demo data. Idempotent: skips if data exists unless ``reset`` is True."""
+    if not reset and (session.scalar(select(func.count()).select_from(Zone)) or 0) > 0:
+        print("[seed] Data already present; skipping (use --reset to wipe and reseed).")
+        return
+
     print("[seed] Clearing all existing data from tables...")
     # Clean tables in reverse dependency order
     session.execute(delete(Notification))
@@ -424,4 +431,4 @@ def seed(session: Session) -> None:
 if __name__ == "__main__":
     engine = create_engine(settings.database_url_sync)
     with Session(engine) as session:
-        seed(session)
+        seed(session, reset="--reset" in sys.argv)

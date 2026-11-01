@@ -5,7 +5,7 @@ Best free combo for RailVoice:
 | Layer | Service | Cost | Your status |
 |-------|---------|------|-------------|
 | Frontend | [Vercel](https://vercel.com) | Free | **Done** → https://rail-voice.vercel.app |
-| Postgres + pgvector | [Neon](https://neon.tech) | Free | **Do this next** |
+| Postgres | [Neon](https://neon.tech) | Free | **Do this next** |
 | API | [Render](https://render.com) Web Service | Free | After Neon |
 
 Cold start: first request to Render after idle can take 30–60s. That’s normal on free.
@@ -32,23 +32,6 @@ Repo: https://github.com/Frpratik/rail-voice
    - Region: closest to you
    - Postgres version: default is fine  
 3. Create project and wait until it’s ready  
-
-### B. Enable pgvector (required)
-
-1. Open **SQL Editor**  
-2. Paste and **Run**:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-3. Confirm:
-
-```sql
-SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
-```
-
-You should see one row with `vector`.
 
 ### C. Copy connection strings
 
@@ -113,9 +96,6 @@ DEBUG=false
 SECRET_KEY=REPLACE_WITH_LONG_RANDOM_32_PLUS_CHARS
 DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST/neondb?ssl=require
 DATABASE_URL_SYNC=postgresql://USER:PASSWORD@HOST/neondb?sslmode=require
-CELERY_ENABLED=false
-CELERY_BROKER_URL=
-CELERY_RESULT_BACKEND=
 REDIS_URL=
 OTP_MOCK_MODE=true
 OTP_MOCK_CODE=123456
@@ -172,7 +152,6 @@ Redeploy Vercel. CORS already includes `https://rail-voice.vercel.app`.
 
 - Render / Neon may sleep when idle  
 - Photos on Render disk may reset on redeploy  
-- No Celery on free tier (create-time AI still works)
 
 ---
 

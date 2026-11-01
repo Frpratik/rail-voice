@@ -73,3 +73,22 @@ async def test_otp_request_includes_mock_otp_in_mock_mode(client: AsyncClient):
 async def test_logout_requires_auth(client: AsyncClient):
     response = await client.post(f"{API}/auth/logout")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_refresh_rotation_and_reuse_detection(client: AsyncClient):
+    mobile = "+919876500001"
+    await client.post(f"{API}/auth/otp/request", json={"mobile": mobile})
+    verify = await client.post(f"{API}/auth/otp/verify", json={"mobile": mobile, "otp": "123456"})
+    old_refresh = verify.json()["data"]["refresh_token"]
+
+    rotated = await client.post(f"{API}/auth/refresh", json={"refresh_token": old_refresh})
+    assert rotated.status_code == 200
+    new_refresh = rotated.json()["data"]["refresh_token"]
+    assert new_refresh != old_refresh
+
+    reuse = await client.post(f"{API}/auth/refresh", json={"refresh_token": old_refresh})
+    assert reuse.status_code == 401
+    # Reuse revokes the whole family, including the newest token.
+    family = await client.post(f"{API}/auth/refresh", json={"refresh_token": new_refresh})
+    assert family.status_code == 401
