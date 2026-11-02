@@ -7,6 +7,9 @@
  */
 
 :root {
+  --rv-font-body: "Barlow";
+  --rv-font-display: "Barlow Condensed";
+  --rv-font-mono: "JetBrains Mono";
   --background: #f4f0e6;
   --foreground: #101a33;
   --card: #fffdf7;
@@ -69,9 +72,9 @@
   --color-border: var(--border);
   --color-ring: var(--ring);
   --color-surface-elevated: var(--surface-elevated);
-  --font-sans: var(--font-body);
-  --font-mono: var(--font-mono);
-  --font-display: var(--font-display);
+  --font-sans: var(--rv-font-body), system-ui, sans-serif;
+  --font-mono: var(--rv-font-mono), ui-monospace, monospace;
+  --font-display: var(--rv-font-display), system-ui, sans-serif;
 
   /* Signage is square: flatten every rounded-* step. */
   --radius-sm: 1px;
@@ -98,7 +101,7 @@ body {
   overflow-wrap: break-word;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-body), system-ui, sans-serif;
+  font-family: var(--rv-font-body), system-ui, sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -126,21 +129,21 @@ body {
 }
 
 .text-display {
-  font-family: var(--font-display), system-ui, sans-serif;
+  font-family: var(--rv-font-display), system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: 0.005em;
   line-height: 1.1;
 }
 
 .label-caps {
-  font-family: var(--font-display), system-ui, sans-serif;
+  font-family: var(--rv-font-display), system-ui, sans-serif;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
 
 .font-board {
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: var(--rv-font-mono), ui-monospace, monospace;
 }
 
 /* Yellow/black hazard strip, as along a platform edge. */
@@ -213,7 +216,7 @@ body {
   background: #06080d;
   color: #ffb000;
   border: 2px solid #1b2130;
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: var(--rv-font-mono), ui-monospace, monospace;
 }
 
 .board-row {
@@ -234,7 +237,7 @@ body {
   border: 1px solid #262d3d;
   border-radius: 2px;
   color: #ffb000;
-  font-family: var(--font-mono), ui-monospace, monospace;
+  font-family: var(--rv-font-mono), ui-monospace, monospace;
   font-weight: 500;
 }
 
