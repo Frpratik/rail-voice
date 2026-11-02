@@ -441,6 +441,9 @@ export const api = {
     list: () =>
       apiFetch<ApiEnvelope<{ items: NotificationItem[] }>>("/notifications"),
 
+    markAllRead: () =>
+      apiFetch<ApiEnvelope<{ marked: number }>>("/notifications/read-all", { method: "POST" }),
+
     markRead: (id: string) =>
       apiFetch<ApiEnvelope<NotificationItem>>(`/notifications/${id}/read`, {
         method: "POST",

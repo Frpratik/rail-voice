@@ -8,11 +8,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import TERMINAL_STATUSES, IssueStatus
+from app.core.enums import OFFICIAL_ROLES, TERMINAL_STATUSES, IssueStatus
 from app.models.issue import Comment, Issue, IssueRating, IssueSupport
 from app.models.location import IssueCategory, Station
-from app.models.user import User
-from app.services.engagement import points_for
+from app.models.user import Role, User, UserRole
+from app.services.engagement import NO_POINTS_STATUSES, points_for
 from app.services.sla import DONE_STATUSES, is_overdue, sla_due_at
 
 FIXED_STATUSES = {
@@ -169,7 +169,7 @@ async def transparency(db: AsyncSession, days: int = 90) -> dict:
 async def passenger_leaderboard(db: AsyncSession, limit: int = 20) -> list[dict]:
     reports = await db.execute(
         select(Issue.creator_id, func.count(Issue.id))
-        .where(Issue.status != IssueStatus.SPAM.value, Issue.creator_id.is_not(None))
+        .where(Issue.status.notin_(NO_POINTS_STATUSES), Issue.creator_id.is_not(None))
         .group_by(Issue.creator_id)
     )
     fixed = await db.execute(
@@ -194,6 +194,17 @@ async def passenger_leaderboard(db: AsyncSession, limit: int = 20) -> list[dict]
     comment_map = dict(comments.all())
 
     ids = set(report_map) | set(backed_map) | set(comment_map)
+    if not ids:
+        return []
+    staff = await db.execute(
+        select(UserRole.user_id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(
+            UserRole.revoked_at.is_(None),
+            Role.code.in_([r.value for r in OFFICIAL_ROLES]),
+        )
+    )
+    ids -= set(staff.scalars().all())
     if not ids:
         return []
     users = await db.execute(

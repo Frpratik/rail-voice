@@ -31,6 +31,9 @@ _BLOCKED_WORDS = {
 }
 _WORD_RE = re.compile(r"[a-z]+")
 
+# Reports that don't earn points: removed by staff, or taken back by the reporter.
+NO_POINTS_STATUSES = [IssueStatus.SPAM.value, IssueStatus.WITHDRAWN.value]
+
 RATEABLE = {
     IssueStatus.COMPLETED.value,
     IssueStatus.VERIFIED_COMPLETE.value,
@@ -182,7 +185,7 @@ async def reputation(db: AsyncSession, user: User) -> dict:
     reports = await db.scalar(
         select(func.count())
         .select_from(Issue)
-        .where(Issue.creator_id == user.id, Issue.status != IssueStatus.SPAM.value)
+        .where(Issue.creator_id == user.id, Issue.status.notin_(NO_POINTS_STATUSES))
     )
     fixed = await db.scalar(
         select(func.count())

@@ -56,7 +56,19 @@ async def list_stations(
     query = query.order_by(Station.sequence_order)
     result = await db.execute(query)
     stations = result.scalars().all()
-    data = [station_to_out(s) for s in stations]
+    counts = dict(
+        (
+            await db.execute(
+                select(Issue.station_id, func.count(Issue.id))
+                .where(
+                    Issue.is_public.is_(True),
+                    Issue.status.notin_([s.value for s in TERMINAL_STATUSES]),
+                )
+                .group_by(Issue.station_id)
+            )
+        ).all()
+    )
+    data = [station_to_out(s, counts.get(s.id, 0)) for s in stations]
     return Envelope(data=data, meta=Meta())
 
 

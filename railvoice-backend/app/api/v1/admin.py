@@ -210,7 +210,7 @@ async def admin_dashboard(
         _scoped_issues(
             select(Issue)
             .options(*ISSUE_RESPONSE_LOAD)
-            .where(Issue.is_public.is_(True))
+            .where(Issue.is_public.is_(True), Issue.status.in_(open_statuses))
             .order_by(Issue.support_count.desc(), Issue.created_at.desc())
             .limit(5),
             officer,
@@ -445,8 +445,12 @@ async def list_officers(
     result = await db.execute(query)
     officers = []
     for user in result.scalars().unique().all():
-        roles = [ur.role.code for ur in user.roles if ur.revoked_at is None and ur.role]
-        if any(r in official_codes for r in roles):
+        roles = [
+            ur.role.code
+            for ur in user.roles
+            if ur.revoked_at is None and ur.role and ur.role.code in official_codes
+        ]
+        if roles:
             officers.append(
                 {
                     "id": str(user.id),

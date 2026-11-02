@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { useAuthStore } from "@/lib/auth-store";
+import { resolvePersona } from "@/lib/roles";
 
 export default function AdminLayout({
   children,
@@ -10,6 +12,8 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const user = useAuthStore((s) => s.user);
+  const isMainAdmin = (user?.persona ?? resolvePersona(user?.roles)) === "main_admin";
 
   return (
     <div className="fixed inset-0 z-50 flex bg-background">
@@ -33,7 +37,7 @@ export default function AdminLayout({
               { href: "/admin/handover", label: "Handover" },
               { href: "/admin/reports", label: "Reports" },
               { href: "/admin/users", label: "Users" },
-              { href: "/admin/audit", label: "Audit" },
+              ...(isMainAdmin ? [{ href: "/admin/audit", label: "Audit" }] : []),
             ].map((l) => (
               <Link
                 key={l.href}

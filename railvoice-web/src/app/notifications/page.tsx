@@ -27,6 +27,14 @@ export default function NotificationsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
 
+  const markAll = useMutation({
+    mutationFn: () => api.notifications.markAllRead(),
+    onSuccess: (res) => {
+      toast.success(`${res.data.marked} marked as read`);
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
   if (!user) {
     return (
       <div className="mx-auto max-w-lg space-y-6">
@@ -57,6 +65,19 @@ export default function NotificationsPage() {
         eyebrow="Updates"
         title="Status Notifications"
         description="Official alerts when station admins review, assign, or resolve problems."
+        action={
+          items.some((n) => !n.is_read) ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={markAll.isPending}
+              onClick={() => markAll.mutate()}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" /> Mark all read
+            </Button>
+          ) : undefined
+        }
       />
 
       {isLoading && (

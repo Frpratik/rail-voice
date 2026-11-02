@@ -54,3 +54,10 @@ async def test_admin_officers_list(client: AsyncClient, admin_headers: dict):
     response = await client.get(f"{API}/admin/officers", headers=admin_headers)
     assert response.status_code == 200
     assert len(response.json()["data"]["items"]) >= 2
+
+
+@pytest.mark.asyncio
+async def test_dashboard_lists_only_open_reports(client: AsyncClient, admin_headers: dict):
+    data = (await client.get(f"{API}/admin/dashboard", headers=admin_headers)).json()["data"]
+    closed = {"closed", "rejected", "spam", "duplicate_merged", "withdrawn"}
+    assert all(i["status"] not in closed for i in data["top_issues"])

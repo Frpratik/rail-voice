@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -63,6 +63,17 @@ export default function AdminIssuesPage() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [checked, setChecked] = useState<string[]>([]);
   const [now] = useState(() => Date.now());
+
+  // The dashboard links here with ?focus=<id>; open that report straight away.
+  useEffect(() => {
+    const focus = new URLSearchParams(window.location.search).get("focus");
+    if (!focus) return;
+    queueMicrotask(() => setSelectedId(focus));
+    setTimeout(
+      () => document.getElementById("triage-actions")?.scrollIntoView({ behavior: "smooth" }),
+      800
+    );
+  }, []);
   const [bulkStatus, setBulkStatus] = useState("verified");
   const [bulkRemarks, setBulkRemarks] = useState("");
   const [note, setNote] = useState("");
@@ -206,7 +217,7 @@ export default function AdminIssuesPage() {
 
   const issues = data?.data.items ?? [];
   const officers = officersData?.data.items ?? [];
-  const selected = issues.find((i) => i.id === selectedId);
+  const selected = issues.find((i) => i.id === selectedId) ?? detailData?.data.issue;
 
   return (
     <div className="space-y-6">

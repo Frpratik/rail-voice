@@ -328,3 +328,33 @@ async def test_repeat_abuser_is_locked(client, bandra_station_id, admin_headers)
         locked = res.json()["data"]["author_locked"]
     assert locked is True
     assert (await client.get(f"{API}/me/reputation", headers=abuser)).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_station_list_counts_open_reports(client, bandra_station_id):
+    before = {s["code"]: s["open_issue_count"] for s in (await client.get(f"{API}/stations")).json()["data"]}
+    reporter = await login(client, new_mobile())
+    await create_issue(client, reporter, bandra_station_id, "Count test, broken tap near stairs")
+    after = {s["code"]: s["open_issue_count"] for s in (await client.get(f"{API}/stations")).json()["data"]}
+    assert after["BA"] == before["BA"] + 1
+    assert after["VR"] is not None
+
+
+@pytest.mark.asyncio
+async def test_withdrawn_reports_earn_no_points_and_staff_are_not_ranked(client, bandra_station_id):
+    reporter = await login(client, new_mobile())
+    issue = await create_issue(client, reporter, bandra_station_id, "Points test, report to withdraw")
+    await client.post(f"{API}/issues/{issue['id']}/withdraw", headers=reporter, json={})
+    rep = (await client.get(f"{API}/me/reputation", headers=reporter)).json()["data"]
+    assert rep["reports"] == 0
+
+    board = (await client.get(f"{API}/public/leaderboard")).json()["data"]["passengers"]
+    names = {p["display_name"] for p in board}
+    assert "Western Railway Main Admin" not in names
+    assert "Bandra Station Admin" not in names
+
+
+@pytest.mark.asyncio
+async def test_officer_list_shows_staff_roles_only(client, admin_headers):
+    items = (await client.get(f"{API}/admin/officers", headers=admin_headers)).json()["data"]["items"]
+    assert all("passenger" not in o["roles"] for o in items)

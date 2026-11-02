@@ -48,7 +48,9 @@ export function AdminSidebar({ pathname }: { pathname: string }) {
 
       <p className="label-caps px-5 pb-2 pt-6 text-[11px] text-white/50">Control room</p>
       <nav className="flex flex-1 flex-col">
-        {links.map(({ href, icon: Icon, label: linkLabel }) => {
+        {links
+          .filter((link) => link.href !== "/admin/audit" || persona === "main_admin")
+          .map(({ href, icon: Icon, label: linkLabel }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
