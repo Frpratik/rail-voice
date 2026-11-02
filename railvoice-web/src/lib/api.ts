@@ -183,7 +183,7 @@ async function downloadAuthed(path: string, filename: string) {
 
 export const api = {
   ai: {
-    status: () => apiFetch<ApiEnvelope<{ enabled: boolean; model: string | null }>>("/ai/status"),
+    status: () => apiFetch<ApiEnvelope<{ enabled: boolean; providers: string[] }>>("/ai/status"),
     draftReport: (payload: { note: string; station_id?: string }) =>
       apiFetch<ApiEnvelope<ReportDraft>>("/ai/draft-report", {
         method: "POST",

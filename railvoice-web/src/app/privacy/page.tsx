@@ -42,8 +42,8 @@ export default function PrivacyPage() {
 
         <h2>AI features</h2>
         <p>
-          When AI features are switched on, the text and photos of a report are sent to our AI provider
-          (Anthropic) to draft reports, translate them, check for duplicates and spam, and help staff. Your
+          When AI features are switched on, the text and photos of a report are sent to our AI providers
+          (Groq, Google Gemini or Anthropic) to draft reports, translate them, check for duplicates and spam, and help staff. Your
           name and mobile number are never sent. AI only suggests; people at the railway make every decision.
         </p>
 

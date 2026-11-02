@@ -37,7 +37,14 @@ class Settings(BaseSettings):
     google_auth_enabled: bool = True
 
     # Generative AI. Off unless a provider is set; "fake" is for local demos and tests only.
-    ai_provider: str = ""  # "" (off) | claude | fake
+    # Comma-separated, tried in order: the next one is used if one fails or is rate limited.
+    # e.g. "groq,gemini". Options: groq | gemini | claude | fake (local only). Empty = AI off.
+    ai_provider: str = ""
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_vision_model: str = "qwen/qwen3.8-27b"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
     anthropic_api_key: str = ""
     ai_model: str = "claude-opus-5-5"
     ai_effort: str = "low"
@@ -167,7 +174,7 @@ class Settings(BaseSettings):
                 errors.append(f"Unknown SMS_PROVIDER={self.sms_provider}")
         if self.google_auth_enabled and not self.google_client_id.strip():
             errors.append("GOOGLE_CLIENT_ID required when GOOGLE_AUTH_ENABLED=true in production")
-        if self.ai_provider.strip().lower() == "fake":
+        if "fake" in [p.strip().lower() for p in self.ai_provider.split(",")]:
             errors.append("AI_PROVIDER=fake is for local testing and not allowed in production")
         if self.rate_limit_require_redis_in_production and not self.redis_url_effective:
             errors.append("REDIS_URL required in production when RATE_LIMIT_REQUIRE_REDIS_IN_PRODUCTION=true")

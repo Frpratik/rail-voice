@@ -11,8 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai import reporting, staff
-from app.ai.client import AIUnavailable, ai_enabled
-from app.core.config import settings
+from app.ai.client import AIUnavailable, ai_enabled, provider_names
 from app.core.deps import get_current_user, get_db, require_official
 from app.models.issue import Issue
 from app.services.scope import enforce_issue_location_scope
@@ -37,7 +36,7 @@ async def ai_status() -> Envelope[dict]:
     return Envelope(
         data={
             "enabled": ai_enabled(),
-            "model": settings.ai_model if ai_enabled() and settings.ai_provider == "claude" else None,
+            "providers": provider_names(),
         },
         meta=Meta(),
     )

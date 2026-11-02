@@ -57,6 +57,9 @@ def _content(prompt: Prompt) -> list[dict[str, Any]]:
 
 
 class ClaudeClient:
+    name = "claude"
+    supports_images = True
+
     def __init__(self, api_key: str) -> None:
         import anthropic
 
@@ -115,6 +118,9 @@ class ClaudeClient:
 class FakeClient:
     """Deterministic stand-in for tests and local demos. Never used in production."""
 
+    name = "demo"
+    supports_images = True
+
     def __init__(self) -> None:
         self.calls: list[Prompt] = []
         self.handlers: dict[str, Callable[[Prompt], Any]] = {}
@@ -138,7 +144,7 @@ class FakeClient:
 FAKE_HANDLERS: dict[str, Callable[[Prompt], Any]] = {}
 
 _override: AIClient | None = None
-_cached: AIClient | None = None
+_cached: tuple[tuple, AIClient | None] | None = None
 
 
 def set_ai(client: AIClient | None) -> None:
@@ -147,20 +153,46 @@ def set_ai(client: AIClient | None) -> None:
     _override = client
 
 
+def _build(name: str) -> AIClient | None:
+    from app.ai.providers import GeminiClient, GroqClient
+
+    if name == "groq" and settings.groq_api_key:
+        return GroqClient(settings.groq_api_key)
+    if name == "gemini" and settings.gemini_api_key:
+        return GeminiClient(settings.gemini_api_key)
+    if name == "claude" and settings.anthropic_api_key:
+        return ClaudeClient(settings.anthropic_api_key)
+    if name == "fake" and not settings.is_production:
+        return FakeClient()
+    return None
+
+
 def get_ai() -> AIClient | None:
+    """The configured provider, or a chain that falls back through several in order."""
     global _cached
     if _override is not None:
         return _override
-    provider = settings.ai_provider.strip().lower()
-    if provider == "claude" and settings.anthropic_api_key:
-        if not isinstance(_cached, ClaudeClient):
-            _cached = ClaudeClient(settings.anthropic_api_key)
-        return _cached
-    if provider == "fake" and not settings.is_production:
-        if not isinstance(_cached, FakeClient):
-            _cached = FakeClient()
-        return _cached
-    return None
+    names = [n.strip().lower() for n in settings.ai_provider.split(",") if n.strip()]
+    key = (
+        tuple(names),
+        bool(settings.groq_api_key),
+        bool(settings.gemini_api_key),
+        bool(settings.anthropic_api_key),
+    )
+    if _cached is None or _cached[0] != key:
+        from app.ai.providers import FallbackClient
+
+        clients = [c for c in (_build(n) for n in names) if c is not None]
+        client = None if not clients else clients[0] if len(clients) == 1 else FallbackClient(clients)
+        _cached = (key, client)
+    return _cached[1]
+
+
+def provider_names() -> list[str]:
+    client = get_ai()
+    if client is None:
+        return []
+    return [getattr(c, "name", type(c).__name__) for c in getattr(client, "clients", [client])]
 
 
 def require_ai() -> AIClient:
