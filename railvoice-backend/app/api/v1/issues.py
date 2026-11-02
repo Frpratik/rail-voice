@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -101,6 +101,7 @@ async def create_issue(
     body: IssueCreateRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ) -> Envelope[dict]:
     category_id = body.category_id
     if not category_id and body.category_code:
@@ -140,6 +141,13 @@ async def create_issue(
             select(IssueCategory).where(IssueCategory.id == issue.category_id)
         )
         category = category_result.scalar_one_or_none()
+
+    from app.ai.client import ai_enabled
+
+    if ai_enabled():
+        from app.ai import moderation
+
+        background_tasks.add_task(moderation.screen_issue, issue.id)
 
     return Envelope(
         data={
@@ -202,7 +210,12 @@ async def similar_issues(
         db, station_id=station_id, category_code=category_code, text=q, limit=limit
     )
     return Envelope(
-        data={"items": [issue_to_out(i).model_dump(mode="json") for i in issues]},
+        data={
+            "items": [
+                {**issue_to_out(i).model_dump(mode="json"), "match_reason": reason}
+                for i, reason in issues
+            ]
+        },
         meta=Meta(),
     )
 

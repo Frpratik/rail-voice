@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Flame,
   ShieldAlert,
+  Sparkles,
   UserCheck,
 } from "lucide-react";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/empty-state";
+import { FixCheck, TriageSuggestion } from "@/components/ai/staff-assist";
 import { api } from "@/lib/api";
 import { compressImage } from "@/lib/image";
 import type { Issue } from "@/lib/types";
@@ -104,6 +106,7 @@ export default function AdminIssuesPage() {
     enabled: !!selectedId,
     retry: false,
   });
+  const detailPhotos = detailData?.data.issue.photos ?? [];
   const notes = (detailData?.data.timeline ?? []).filter((e) => e.event_type === "internal_note");
 
   const { data: officersData } = useQuery({
@@ -154,6 +157,29 @@ export default function AdminIssuesPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const { data: aiStatus } = useQuery({ queryKey: ["ai-status"], queryFn: () => api.ai.status() });
+  const [suggesting, setSuggesting] = useState(false);
+
+  const suggestWording = async () => {
+    if (!selectedId || remarks.trim().length < 2) {
+      toast.error("Type a few quick notes first, e.g. \"cleaner sent, 30 min\"");
+      return;
+    }
+    setSuggesting(true);
+    try {
+      const res = await api.ai.suggestReply({
+        issue_id: selectedId,
+        notes: remarks.trim(),
+        new_status: newStatus,
+      });
+      setRemarks(res.data.local ? `${res.data.english}\n\n${res.data.local}` : res.data.english);
+    } catch {
+      toast.error("Couldn't suggest wording right now");
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   const refreshDetail = () =>
     queryClient.invalidateQueries({ queryKey: ["admin-issue-detail", selectedId] });
@@ -207,6 +233,7 @@ export default function AdminIssuesPage() {
     try {
       await api.issues.uploadPhoto(selectedId, await compressImage(file), "resolution");
       toast.success("Proof photo added to the public report");
+      refreshDetail();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     }
@@ -609,6 +636,12 @@ export default function AdminIssuesPage() {
                       </option>
                     ))}
                   </select>
+                  {aiStatus?.data.enabled && (
+                    <TriageSuggestion
+                      issueId={selected.id}
+                      onUseDepartment={(d) => departmentMutation.mutate(d)}
+                    />
+                  )}
                   <label className="label-caps mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs text-accent hover:underline">
                     <Camera className="h-3.5 w-3.5" /> Add proof-of-fix photo
                     <input
@@ -618,6 +651,11 @@ export default function AdminIssuesPage() {
                       onChange={(e) => void uploadProof(e)}
                     />
                   </label>
+                  {aiStatus?.data.enabled &&
+                    detailPhotos.some((p) => p.kind === "resolution") &&
+                    detailPhotos.some((p) => (p.kind ?? "evidence") === "evidence") && (
+                      <FixCheck issueId={selected.id} />
+                    )}
                 </div>
 
                 <div className="space-y-2 border border-card-border bg-background p-4">
@@ -682,7 +720,22 @@ export default function AdminIssuesPage() {
 
               {/* Action Remarks */}
               <div className="space-y-1.5 pt-1">
-                <Label htmlFor="remarks">Update for the public timeline * (required)</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="remarks" className="mb-0">
+                    Update for the public timeline * (required)
+                  </Label>
+                  {aiStatus?.data.enabled && (
+                    <button
+                      type="button"
+                      disabled={suggesting}
+                      onClick={() => void suggestWording()}
+                      className="label-caps inline-flex items-center gap-1.5 text-xs text-accent hover:underline disabled:opacity-50"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      {suggesting ? "Writing…" : "Suggest wording from my notes"}
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-1.5 pb-1">
                   {TEMPLATES.map((text) => (
                     <button

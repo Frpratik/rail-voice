@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { MonthlyReport, RecurringExplained } from "@/components/ai/analytics-ai";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/ui/empty-state";
@@ -90,6 +91,7 @@ export default function AdminAnalyticsPage() {
     retry: false,
   });
   const report = data?.data;
+  const { data: aiStatus } = useQuery({ queryKey: ["ai-status"], queryFn: () => api.ai.status() });
 
   const weekly = async () => {
     try {
@@ -190,6 +192,13 @@ export default function AdminAnalyticsPage() {
               }))}
             />
           </div>
+        </>
+      )}
+
+      {aiStatus?.data.enabled && (
+        <>
+          <RecurringExplained />
+          <MonthlyReport />
         </>
       )}
     </div>

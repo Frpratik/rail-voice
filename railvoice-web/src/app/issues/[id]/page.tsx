@@ -18,6 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { TranslateReport } from "@/components/ai/translate-report";
 import { IssueTimeline } from "@/components/issues/issue-timeline";
 import { SupportButton } from "@/components/issues/support-button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -269,6 +270,9 @@ export default function IssueDetailPage() {
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
             {issue.description}
           </p>
+          <div className="mt-3">
+            <TranslateReport issueId={issue.id} />
+          </div>
         </div>
 
         {/* Evidence Photos */}

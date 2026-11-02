@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Camera,
   Phone,
+  Sparkles,
   ThumbsUp,
   FileText,
   Image as ImageIcon,
@@ -21,8 +22,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/empty-state";
+import { DraftHelper } from "@/components/ai/draft-helper";
 import { StatusBadge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
+import type { PhotoInsight, ReportDraft } from "@/lib/types";
 import { useAuthStore } from "@/lib/auth-store";
 import { useT } from "@/lib/i18n";
 import { compressImage, currentPosition } from "@/lib/image";
@@ -180,13 +183,54 @@ export default function ReportPage() {
     },
   });
 
+  const { data: aiStatus } = useQuery({ queryKey: ["ai-status"], queryFn: () => api.ai.status() });
+  const { data: categoriesData } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api.categories.list(),
+  });
+  // The AI may pick a category that has no quick button; show it so the choice is visible.
+  const extraCategory =
+    CATEGORIES.some((c) => c.id === categoryCode)
+      ? null
+      : (categoriesData?.data ?? []).find((c) => c.code === categoryCode);
+
+  const applyDraft = (draft: ReportDraft) => {
+    setTitle(draft.title);
+    setDescription(draft.description);
+    setCategoryCode(draft.category_code);
+    setIsEmergency(draft.is_emergency);
+  };
+
   const showEmergencyNotice = isEmergency || categoryCode === "safety_security";
+
+  const [photoInsight, setPhotoInsight] = useState<PhotoInsight | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selected = await Promise.all(Array.from(e.target.files).map((f) => compressImage(f)));
+      const isFirst = photoFiles.length === 0;
       setPhotoFiles((prev) => [...prev, ...selected].slice(0, 3));
+      if (isFirst && selected[0] && aiStatus?.data.enabled && (user || anonymousSessionId)) {
+        setAnalyzing(true);
+        try {
+          setPhotoInsight((await api.ai.analyzePhoto(selected[0])).data);
+        } catch {
+          /* The photo still uploads with the report; the suggestion is optional. */
+        } finally {
+          setAnalyzing(false);
+        }
+      }
     }
+  };
+
+  const applyPhotoInsight = () => {
+    if (!photoInsight) return;
+    setCategoryCode(photoInsight.category_code);
+    if (!description.trim()) setDescription(photoInsight.what_i_see);
+    if (photoInsight.is_hazard) setIsEmergency(true);
+    setPhotoInsight(null);
+    toast.success("Applied. Please check the details above.");
   };
 
   const removePhoto = (index: number) => {
@@ -342,6 +386,10 @@ export default function ReportPage() {
           </div>
         </Card>
 
+        {aiStatus?.data.enabled && (user || anonymousSessionId) && (
+          <DraftHelper stationId={stationId} onDraft={applyDraft} />
+        )}
+
         {/* Problem Details */}
         <Card className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2">
@@ -366,6 +414,14 @@ export default function ReportPage() {
                   {cat.label}
                 </button>
               ))}
+              {extraCategory && (
+                <button
+                  type="button"
+                  className="rounded-xl border border-accent bg-accent/10 p-2.5 text-left text-xs font-semibold text-foreground"
+                >
+                  {extraCategory.name}
+                </button>
+              )}
             </div>
           </div>
 
@@ -453,6 +509,12 @@ export default function ReportPage() {
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                     {item.description}
                   </p>
+                  {item.match_reason && (
+                    <p className="mt-1.5 flex items-start gap-1.5 text-xs text-accent">
+                      <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      {item.match_reason}
+                    </p>
+                  )}
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <span className="font-board text-xs text-muted-foreground">
                       {item.issue_number} · {item.support_count} backing
@@ -512,6 +574,38 @@ export default function ReportPage() {
               </div>
             ))}
 
+            {analyzing && (
+              <p className="flex w-full items-center gap-1.5 text-xs text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5" /> Looking at your photo…
+              </p>
+            )}
+            {photoInsight && (
+              <div className="w-full space-y-2 border-2 border-dashed border-primary/50 p-3 text-sm">
+                <p className="flex items-start gap-1.5">
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  <span>
+                    <strong>AI sees:</strong> {photoInsight.what_i_see}
+                  </span>
+                </p>
+                {photoInsight.is_hazard && (
+                  <p className="font-medium text-destructive">Possible hazard: {photoInsight.hazard_reason}</p>
+                )}
+                {photoInsight.is_relevant ? (
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="accent" onClick={applyPhotoInsight}>
+                      Use this
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setPhotoInsight(null)}>
+                      Ignore
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">
+                    This photo may not show a station problem. You can still attach it.
+                  </p>
+                )}
+              </div>
+            )}
             {photoFiles.length < 3 && (
               <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-card-border bg-background transition-colors hover:border-accent hover:bg-accent/5">
                 <ImageIcon className="h-5 w-5 text-muted-foreground" />

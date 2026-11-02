@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ import { StatusBadge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import type { FlagItem } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
+
+const AI_SCREENER = "AI screening";
 
 const REASON_LABEL: Record<string, string> = {
   spam: "Spam or advertising",
@@ -39,16 +42,18 @@ export default function AdminFlagsPage() {
   });
 
   // Several passengers may flag the same thing; show it once with a count.
-  const groups = new Map<string, { first: FlagItem; count: number; reasons: Set<string> }>();
+  // The AI check files its flag under the "AI screening" account; it's shown apart from passenger flags.
+  const groups = new Map<string, { first: FlagItem; count: number; reasons: Set<string>; ai: FlagItem | null }>();
   for (const flag of data?.data.items ?? []) {
     const key = `${flag.issue.id}:${flag.target}:${flag.comment_body ?? ""}`;
-    const group = groups.get(key);
-    if (group) {
+    const fromAi = flag.reporter === AI_SCREENER;
+    const group = groups.get(key) ?? { first: flag, count: 0, reasons: new Set<string>(), ai: null };
+    if (fromAi) group.ai = flag;
+    else {
       group.count += 1;
       group.reasons.add(flag.reason);
-    } else {
-      groups.set(key, { first: flag, count: 1, reasons: new Set([flag.reason]) });
     }
+    groups.set(key, group);
   }
   const rows = [...groups.values()].sort((a, b) => b.count - a.count);
 
@@ -57,7 +62,7 @@ export default function AdminFlagsPage() {
       <PageHeader
         eyebrow="Moderation"
         title="Flagged reports"
-        description="Reports and comments that passengers flagged. Hide what breaks the rules, dismiss what doesn't."
+        description="Reports and comments flagged by passengers or the automatic AI check. Hide what breaks the rules, dismiss what doesn't."
       />
 
       {isLoading ? (
@@ -76,7 +81,7 @@ export default function AdminFlagsPage() {
         <EmptyState title="Nothing flagged" description="No open flags in your stations." />
       ) : (
         <div className="space-y-4">
-          {rows.map(({ first, count, reasons }) => (
+          {rows.map(({ first, count, reasons, ai }) => (
             <Card key={first.id} className="space-y-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -102,12 +107,22 @@ export default function AdminFlagsPage() {
                 </blockquote>
               )}
 
-              <p className="text-sm text-muted-foreground">
-                <strong className="font-board text-foreground">{count}</strong>{" "}
-                {count === 1 ? "passenger" : "passengers"} flagged this as{" "}
-                {[...reasons].map((r) => REASON_LABEL[r] ?? r).join(", ").toLowerCase()} · first{" "}
-                {first.created_at ? formatRelativeTime(first.created_at) : ""}
-              </p>
+              {ai && (
+                <p className="flex items-start gap-1.5 border-l-4 border-accent bg-muted/50 px-3 py-2 text-sm">
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  <span>
+                    {ai.note ?? "Flagged by the automatic AI check."} The report stays public until you decide.
+                  </span>
+                </p>
+              )}
+              {count > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  <strong className="font-board text-foreground">{count}</strong>{" "}
+                  {count === 1 ? "passenger" : "passengers"} flagged this as{" "}
+                  {[...reasons].map((r) => REASON_LABEL[r] ?? r).join(", ").toLowerCase()} · first{" "}
+                  {first.created_at ? formatRelativeTime(first.created_at) : ""}
+                </p>
+              )}
 
               <div className="flex flex-wrap gap-2 border-t border-dashed border-card-border pt-3">
                 <Button

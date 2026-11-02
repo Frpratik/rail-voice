@@ -10,6 +10,8 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.ai import duplicates
+from app.ai.client import AIUnavailable, ai_enabled
 from app.core.config import settings
 from app.core.enums import (
     TERMINAL_STATUSES,
@@ -50,8 +52,8 @@ async def find_similar_issues(
     category_code: str | None,
     text: str | None,
     limit: int = 5,
-) -> list[Issue]:
-    """Open public reports at the same station, best matches first."""
+) -> list[tuple[Issue, str | None]]:
+    """Open public reports at the same station, best matches first, with an AI reason when available."""
     open_filter = Issue.status.notin_([s.value for s in TERMINAL_STATUSES])
     result = await db.execute(
         select(Issue)
@@ -74,14 +76,38 @@ async def find_similar_issues(
             score += 2.0
         overlap = wanted & _terms(f"{issue.title or ''} {issue.description}")
         score += len(overlap) * 1.5
-        # Without a text match, only same-category reports are worth showing.
-        if score < 2.0 and not overlap:
-            continue
         score += min(issue.support_count, 50) / 50
         scored.append((score, issue))
-
     scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [issue for _, issue in scored[:limit]]
+
+    # AI understands paraphrases and other languages; keyword matching is the fallback.
+    if text and len(text.strip()) >= 12 and ai_enabled() and issues:
+        try:
+            ranked = [issue for _, issue in scored]
+            reasons = await duplicates.same_problem(
+                text,
+                [
+                    {
+                        "issue_number": i.issue_number,
+                        "title": i.title,
+                        "description": i.description,
+                        "category": i.category.name if i.category else None,
+                    }
+                    for i in ranked
+                ],
+            )
+            return [(i, reasons[i.issue_number]) for i in ranked if i.issue_number in reasons][:limit]
+        except AIUnavailable:
+            pass
+
+    keyword = [
+        (score, issue)
+        for score, issue in scored
+        # Without a text match, only same-category reports are worth showing.
+        if score - min(issue.support_count, 50) / 50 >= 2.0
+        or wanted & _terms(f"{issue.title or ''} {issue.description}")
+    ]
+    return [(issue, None) for _, issue in keyword[:limit]]
 
 
 async def staff_for_station(db: AsyncSession, station: Station) -> list[User]:

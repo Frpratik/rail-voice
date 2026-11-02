@@ -11,6 +11,8 @@ import type {
   NotificationItem,
   Officer,
   Photo,
+  PhotoInsight,
+  ReportDraft,
   Reputation,
   Station,
   StationScore,
@@ -180,6 +182,84 @@ async function downloadAuthed(path: string, filename: string) {
 }
 
 export const api = {
+  ai: {
+    status: () => apiFetch<ApiEnvelope<{ enabled: boolean; model: string | null }>>("/ai/status"),
+    draftReport: (payload: { note: string; station_id?: string }) =>
+      apiFetch<ApiEnvelope<ReportDraft>>("/ai/draft-report", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    analyzePhoto: (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return apiFetch<ApiEnvelope<PhotoInsight>>("/ai/analyze-photo", { method: "POST", body: form });
+    },
+    briefing: (refresh = false) =>
+      apiFetch<
+        ApiEnvelope<{
+          headline: string;
+          urgent: string[];
+          patterns: string[];
+          suggestions: string[];
+          generated_at: string;
+          open_count: number;
+        }>
+      >(`/ai/briefing${refresh ? "?refresh=true" : ""}`),
+    ask: (payload: { question: string; station_id?: string }) =>
+      apiFetch<
+        ApiEnvelope<{ answer: string; issues: { id: string; issue_number: string; title: string }[] }>
+      >("/ai/ask", { method: "POST", body: JSON.stringify(payload) }),
+    translate: (issueId: string, lang: string) =>
+      apiFetch<ApiEnvelope<{ title: string; description: string; lang: string }>>(
+        `/ai/translate/${issueId}?lang=${lang}`
+      ),
+    stationSummary: (stationId: string) =>
+      apiFetch<
+        ApiEnvelope<{ summary: string; watch_out: string[]; generated_at: string; open_count: number }>
+      >(`/ai/station-summary/${stationId}`),
+    triage: (issueId: string) =>
+      apiFetch<ApiEnvelope<{ department: string; urgency: number; reason: string }>>(`/ai/triage/${issueId}`, {
+        method: "POST",
+      }),
+    fixCheck: (issueId: string) =>
+      apiFetch<ApiEnvelope<{ same_place: boolean; looks_fixed: boolean; explanation: string }>>(
+        `/ai/fix-check/${issueId}`,
+        { method: "POST" }
+      ),
+    recurring: () =>
+      apiFetch<
+        ApiEnvelope<{
+          items: {
+            station: string;
+            category: string;
+            count: number;
+            reports: { id: string; issue_number: string }[];
+            pattern: string;
+            likely_cause: string;
+            fix: string;
+          }[];
+          generated_at: string;
+        }>
+      >("/ai/recurring"),
+    monthlyReport: (month?: string) =>
+      apiFetch<
+        ApiEnvelope<{
+          month: string;
+          month_label: string;
+          summary: string;
+          highlights: string[];
+          concerns: string[];
+          recommendations: string[];
+          figures: Record<string, string | number>;
+        }>
+      >(`/ai/monthly-report${month ? `?month=${month}` : ""}`),
+    suggestReply: (payload: { issue_id: string; notes: string; new_status?: string }) =>
+      apiFetch<ApiEnvelope<{ english: string; local: string }>>("/ai/suggest-reply", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+  },
+
   public: {
     transparency: (days = 90) =>
       apiFetch<ApiEnvelope<Transparency>>(`/public/transparency?days=${days}`),
@@ -331,7 +411,9 @@ export const api = {
       const q = new URLSearchParams({ station_id: params.station_id });
       if (params.category_code) q.set("category_code", params.category_code);
       if (params.q) q.set("q", params.q);
-      return apiFetch<ApiEnvelope<{ items: Issue[] }>>(`/issues/similar?${q.toString()}`);
+      return apiFetch<ApiEnvelope<{ items: (Issue & { match_reason?: string | null })[] }>>(
+        `/issues/similar?${q.toString()}`
+      );
     },
 
     withdraw: (id: string, reason?: string) =>

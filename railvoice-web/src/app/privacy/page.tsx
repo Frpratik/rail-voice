@@ -40,6 +40,13 @@ export default function PrivacyPage() {
           <li>We don&apos;t sell your information or use it for advertising.</li>
         </ul>
 
+        <h2>AI features</h2>
+        <p>
+          When AI features are switched on, the text and photos of a report are sent to our AI provider
+          (Anthropic) to draft reports, translate them, check for duplicates and spam, and help staff. Your
+          name and mobile number are never sent. AI only suggests; people at the railway make every decision.
+        </p>
+
         <h2>Your choices</h2>
         <p>
           You can withdraw a report before work starts. To have your account removed, ask the

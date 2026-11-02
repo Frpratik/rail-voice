@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowUpRight, FileText, Shield } from "lucide-react";
+import { BriefingCard } from "@/components/ai/briefing-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/empty-state";
@@ -91,6 +92,7 @@ export default function AdminDashboardPage() {
     queryFn: () => api.admin.dashboard(),
     retry: false,
   });
+  const { data: aiStatus } = useQuery({ queryKey: ["ai-status"], queryFn: () => api.ai.status() });
 
   if (error) {
     return (
@@ -168,6 +170,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {aiStatus?.data.enabled && <BriefingCard />}
 
       <section>
         <div className="mb-3 flex items-end justify-between">

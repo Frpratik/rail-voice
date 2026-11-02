@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { AppHeader, BottomNav, SiteFooter } from "@/components/layout/app-shell";
+import { AskWidget } from "@/components/ai/ask-widget";
 import { AuthGate } from "@/components/auth-gate";
 import { AppSettings } from "@/providers/app-settings";
 import { QueryProvider } from "@/providers/query-provider";
@@ -55,6 +56,7 @@ export default function RootLayout({
                 <SiteFooter />
                 <BottomNav />
               </div>
+              <AskWidget />
               <Toaster
                 position="top-center"
                 richColors

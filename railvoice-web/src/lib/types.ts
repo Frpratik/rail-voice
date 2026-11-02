@@ -213,3 +213,21 @@ export interface AuditItem {
   success: boolean;
   ip: string | null;
 }
+
+export interface ReportDraft {
+  title: string;
+  description: string;
+  category_code: string;
+  is_emergency: boolean;
+  emergency_reason: string;
+  language: string;
+  is_railway_problem: boolean;
+}
+
+export interface PhotoInsight {
+  is_relevant: boolean;
+  what_i_see: string;
+  category_code: string;
+  is_hazard: boolean;
+  hazard_reason: string;
+}

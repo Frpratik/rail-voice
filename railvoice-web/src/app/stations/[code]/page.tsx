@@ -7,6 +7,7 @@ import { ArrowLeft, Inbox, Printer, Share2, Star } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { StationSummary } from "@/components/ai/station-summary";
 import { IssueCard } from "@/components/issues/issue-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -128,6 +129,8 @@ export default function StationPage() {
           ))}
         </dl>
       )}
+
+      {station && <StationSummary stationId={station.id} />}
 
       {showPoster && (
         <Card className="space-y-4 p-4 text-center">

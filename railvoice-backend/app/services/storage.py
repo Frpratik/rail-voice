@@ -53,6 +53,13 @@ class StorageService:
             await f.write(data)
         return key
 
+    async def load_bytes(self, key: str) -> bytes:
+        if self.backend == "s3":
+            obj = await asyncio.to_thread(self._get_s3().get_object, Bucket=settings.s3_bucket, Key=key)
+            return await asyncio.to_thread(obj["Body"].read)
+        async with aiofiles.open(self.resolve_path(key), "rb") as f:
+            return await f.read()
+
     def _s3_put(self, key: str, data: bytes, content_type: str | None) -> str:
         if not settings.s3_bucket:
             raise RuntimeError("S3_BUCKET is required when STORAGE_BACKEND=s3")

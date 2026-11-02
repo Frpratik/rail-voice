@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     google_oauth_mock_mode: bool = True
     google_auth_enabled: bool = True
 
+    # Generative AI. Off unless a provider is set; "fake" is for local demos and tests only.
+    ai_provider: str = ""  # "" (off) | claude | fake
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-opus-5-5"
+    ai_effort: str = "low"
+    ai_timeout_seconds: float = 45.0
+    ai_cache_hours: int = 12
+
     storage_backend: str = "local"  # local | s3
     local_storage_path: str = "storage/uploads"
     public_base_url: str = "http://localhost:8000"
@@ -159,6 +167,8 @@ class Settings(BaseSettings):
                 errors.append(f"Unknown SMS_PROVIDER={self.sms_provider}")
         if self.google_auth_enabled and not self.google_client_id.strip():
             errors.append("GOOGLE_CLIENT_ID required when GOOGLE_AUTH_ENABLED=true in production")
+        if self.ai_provider.strip().lower() == "fake":
+            errors.append("AI_PROVIDER=fake is for local testing and not allowed in production")
         if self.rate_limit_require_redis_in_production and not self.redis_url_effective:
             errors.append("REDIS_URL required in production when RATE_LIMIT_REQUIRE_REDIS_IN_PRODUCTION=true")
         return errors
