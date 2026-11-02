@@ -24,18 +24,21 @@ export default function AdminLayout({
               ← Public site
             </Link>
           </div>
-          <nav className="flex gap-0.5 px-2 pb-2 lg:hidden">
+          <nav className="flex gap-1 overflow-x-auto px-3 pb-2 lg:hidden">
             {[
               { href: "/admin/dashboard", label: "Overview" },
               { href: "/admin/issues", label: "Queue" },
               { href: "/admin/flags", label: "Flagged" },
+              { href: "/admin/analytics", label: "Analytics" },
+              { href: "/admin/handover", label: "Handover" },
               { href: "/admin/reports", label: "Reports" },
               { href: "/admin/users", label: "Users" },
+              { href: "/admin/audit", label: "Audit" },
             ].map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
-                className={`label-caps min-w-0 flex-1 px-1 py-1.5 text-center text-[11px] !tracking-[0.04em] ${
+                className={`label-caps shrink-0 px-2 py-1.5 text-xs ${
                   pathname.startsWith(l.href)
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground"

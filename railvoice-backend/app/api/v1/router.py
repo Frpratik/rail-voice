@@ -1,11 +1,13 @@
 from fastapi import APIRouter
 
-from app.api.v1 import admin, auth, issues, search, social, users
+from app.api.v1 import admin, auth, engagement, issues, ops, search, social, users
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
+api_router.include_router(engagement.router)
 api_router.include_router(issues.router)
 api_router.include_router(search.router)
+api_router.include_router(ops.router)
 api_router.include_router(admin.router)
 api_router.include_router(users.admin_users_router)
 api_router.include_router(users.me_router)

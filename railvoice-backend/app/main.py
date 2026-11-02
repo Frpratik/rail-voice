@@ -1,4 +1,6 @@
+import asyncio
 from contextlib import asynccontextmanager
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -31,12 +33,20 @@ async def lifespan(app: FastAPI):
         errors.append(redis_error)
     if errors:
         raise RuntimeError("Unsafe production configuration: " + "; ".join(errors))
+
+    from app.api.v1.ops import sla_sweep_loop
+
+    sweep = None
+    if settings.sla_sweep_minutes > 0 and "pytest" not in sys.modules:
+        sweep = asyncio.create_task(sla_sweep_loop())
     yield
+    if sweep:
+        sweep.cancel()
 
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.3.0",
+    version="1.4.0",
     description="AI-powered public issue reporting for Indian Railways",
     lifespan=lifespan,
     docs_url="/docs",

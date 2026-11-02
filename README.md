@@ -57,6 +57,15 @@ Open the **[live demo](https://rail-voice.vercel.app)** and sign in with OTP `12
 - 🚩 **Flag:** mark spam, abuse or false reports for review.
 - 🔔 **Notifications:** in-app updates whenever your report changes.
 - 🆘 **Emergency numbers:** safety reports show railway helpline 139, RPF 182 and emergency 112.
+- 📍 **Use my location:** finds the nearest station for reports and the feed.
+- 👤 **No account needed:** browse freely, and report anonymously if you prefer.
+- ⭐ **Follow and favourite:** get updates on any report and keep your regular stations handy.
+- 🌟 **Rate the fix:** score it after a report is fixed, and see staff proof photos.
+- 🏅 **Points and badges:** earned for useful reports, with a public leaderboard.
+- 🌐 **Hindi and Marathi:** for navigation, the feed, the report form and statuses.
+- 📲 **Installable app:** works as a PWA, with pages available on poor networks.
+- 🔍 **Station pages:** live stats, sharing, and a printable QR poster.
+- 🔒 **Your data:** download it or delete your account from your profile. Photo location data is removed on upload.
 
 ### For railway staff
 
@@ -68,6 +77,12 @@ Open the **[live demo](https://rail-voice.vercel.app)** and sign in with OTP `12
 - 🛡️ **Moderation:** review flags, then remove or dismiss.
 - 📄 **Exports:** Excel and PDF reports.
 - 👥 **User management:** roles, locks, station assignment and an audit trail.
+- ⏱️ **Target times:** each report gets a countdown, and overdue reports escalate automatically.
+- 📝 **Private notes:** staff-only notes, reply templates and proof-of-fix photos.
+- 🧰 **Queue tools:** bulk updates, merging duplicates, departments and "assigned to me".
+- 📊 **Analytics:** trends, categories, stations, departments and recurring problems.
+- 🔄 **Shift handover:** what is new, overdue and recently changed.
+- 🌍 **Public transparency page:** each station's fix rate, for anyone to see.
 
 <table>
   <tr>

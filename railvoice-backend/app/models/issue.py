@@ -50,6 +50,9 @@ class Issue(Base):
     upcoming_station_code: Mapped[str | None] = mapped_column(String(10))
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
+    department: Mapped[str | None] = mapped_column(String(30))
+    merged_into_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"))
+    auto_escalated: Mapped[bool] = mapped_column(Boolean, default=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -122,6 +125,7 @@ class IssuePhoto(Base):
     thumbnail_key: Mapped[str | None] = mapped_column(String(500))
     perceptual_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     scan_status: Mapped[str] = mapped_column(String(20), default="approved")
+    kind: Mapped[str] = mapped_column(String(20), default="evidence")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -144,6 +148,38 @@ class Comment(Base):
 
     issue: Mapped[Issue] = relationship(back_populates="comments")
     user: Mapped["User"] = relationship(back_populates="comments")
+
+
+class IssueFollower(Base):
+    __tablename__ = "issue_followers"
+    __table_args__ = (UniqueConstraint("issue_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issue_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StationFavourite(Base):
+    __tablename__ = "station_favourites"
+    __table_args__ = (UniqueConstraint("station_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    station_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("stations.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IssueRating(Base):
+    __tablename__ = "issue_ratings"
+    __table_args__ = (UniqueConstraint("issue_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    issue_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class IssueFlag(Base):

@@ -23,7 +23,9 @@ from app.schemas.common import (
     StatusUpdateRequest,
 )
 from app.schemas.mappers import issue_to_out
+from app.services import engagement
 from app.services.issue_service import ISSUE_RESPONSE_LOAD, issue_service
+from app.services.sla import is_overdue
 from app.services.report_service import issues_to_pdf, issues_to_xlsx
 from app.services.scope import apply_issue_location_scope, enforce_issue_location_scope
 
@@ -72,6 +74,60 @@ ESCALATE_STATUS = {
     "division": IssueStatus.FORWARDED_DIVISION.value,
     "zone": IssueStatus.FORWARDED_ZONE.value,
 }
+
+
+async def apply_status_change(
+    db: AsyncSession,
+    issue: Issue,
+    officer: User,
+    new_status: str,
+    remarks: str,
+    *,
+    visibility: str = Visibility.PUBLIC.value,
+) -> IssueTimelineEvent:
+    """Validate a transition, then record it and tell the people following the report."""
+    allowed = VALID_TRANSITIONS.get(issue.status, set())
+    if new_status not in allowed and new_status != issue.status:
+        raise ValueError(f"Invalid transition from {issue.status} to {new_status}")
+
+    from_status = issue.status
+    issue.status = new_status
+    if new_status == IssueStatus.CLOSED.value:
+        issue.closed_at = datetime.now(timezone.utc)
+    if new_status == IssueStatus.COMPLETED.value:
+        issue.resolved_at = datetime.now(timezone.utc)
+
+    event = IssueTimelineEvent(
+        issue_id=issue.id,
+        event_type="status_change",
+        from_status=from_status,
+        to_status=new_status,
+        actor_id=officer.id,
+        remarks=remarks,
+        visibility=visibility,
+    )
+    db.add(event)
+    label = new_status.replace("_", " ")
+    if issue.creator_id:
+        db.add(
+            Notification(
+                user_id=issue.creator_id,
+                type="status_change",
+                title=f"Issue {issue.issue_number} updated",
+                body=f"Status changed to {label}. {remarks[:120]}",
+                issue_id=issue.id,
+            )
+        )
+    await engagement.notify_followers(
+        db,
+        issue,
+        kind="status_change",
+        title=f"Update on {issue.issue_number}",
+        body=f"Status changed to {label}.",
+        skip_user_ids={issue.creator_id, officer.id},
+    )
+    await db.flush()
+    return event
 
 
 def _scoped_issues(query, officer: User):
@@ -130,15 +186,17 @@ async def admin_dashboard(
     )
     open_rows = await db.execute(
         _scoped_issues(
-            select(Issue.severity, Issue.created_at).where(Issue.status.in_(open_statuses)),
+            select(Issue.status, Issue.severity, Issue.created_at, Issue.is_emergency).where(
+                Issue.status.in_(open_statuses)
+            ),
             officer,
         )
     )
     now = datetime.now(timezone.utc)
     sla_breaches = sum(
         1
-        for severity, created_at in open_rows.all()
-        if created_at and (now - created_at).total_seconds() > settings.sla_hours_for_severity(severity or 3) * 3600
+        for row in open_rows.all()
+        if is_overdue(row.status, row.created_at, row.is_emergency, row.severity, now)
     )
     kpis = DashboardKPIs(
         open_issues=open_count or 0,
@@ -172,20 +230,31 @@ async def admin_issue_queue(
     db: Annotated[AsyncSession, Depends(get_db)],
     officer: Annotated[User, Depends(require_official)],
     status_filter: str | None = None,
+    department: str | None = None,
+    assigned_to_me: bool = False,
+    overdue_only: bool = False,
     limit: int = 50,
 ) -> Envelope[dict]:
     query = (
         select(Issue)
         .options(*ISSUE_RESPONSE_LOAD)
         .where(Issue.is_public.is_(True))
-        .order_by(Issue.support_count.desc(), Issue.created_at.desc())
-        .limit(limit)
+        .order_by(Issue.priority_score.desc(), Issue.created_at.desc())
+        .limit(500 if overdue_only else limit)
     )
     if status_filter:
         query = query.where(Issue.status == status_filter)
+    if department:
+        query = query.where(Issue.department == department)
+    if assigned_to_me:
+        query = query.where(Issue.assignee_id == officer.id)
     query = _scoped_issues(query, officer)
     result = await db.execute(query)
-    issues = result.scalars().all()
+    issues = list(result.scalars().all())
+    if overdue_only:
+        issues = [
+            i for i in issues if is_overdue(i.status, i.created_at, i.is_emergency, i.severity)
+        ][:limit]
     return Envelope(
         data={"items": [issue_to_out(i).model_dump(mode="json") for i in issues]},
         meta=Meta(),
@@ -204,40 +273,13 @@ async def update_issue_status(
         raise HTTPException(status_code=404, detail="Issue not found")
     enforce_issue_location_scope(officer, issue)
 
-    allowed = VALID_TRANSITIONS.get(issue.status, set())
-    if body.status not in allowed and body.status != issue.status:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid transition from {issue.status} to {body.status}",
-        )
-
     from_status = issue.status
-    issue.status = body.status
-    if body.status == IssueStatus.CLOSED.value:
-        issue.closed_at = datetime.now(timezone.utc)
-    if body.status == IssueStatus.COMPLETED.value:
-        issue.resolved_at = datetime.now(timezone.utc)
-
-    event = IssueTimelineEvent(
-        issue_id=issue.id,
-        event_type="status_change",
-        from_status=from_status,
-        to_status=body.status,
-        actor_id=officer.id,
-        remarks=body.remarks,
-        visibility=body.visibility,
-    )
-    db.add(event)
-    if issue.creator_id:
-        db.add(
-            Notification(
-                user_id=issue.creator_id,
-                type="status_change",
-                title=f"Issue {issue.issue_number} updated",
-                body=f"Status changed to {body.status.replace('_', ' ')}. {body.remarks[:120]}",
-                issue_id=issue.id,
-            )
+    try:
+        event = await apply_status_change(
+            db, issue, officer, body.status, body.remarks, visibility=body.visibility
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     await db.flush()
 
     detailed = await issue_service.get_issue_detail(db, issue.id)
@@ -350,6 +392,14 @@ async def escalate_issue(
             metadata_={"target": body.target},
         )
     )
+    await engagement.notify_followers(
+        db,
+        issue,
+        kind="escalation",
+        title=f"Update on {issue.issue_number}",
+        body=f"Escalated to {body.target.replace('_', ' ')}.",
+        skip_user_ids={issue.creator_id, officer.id},
+    )
     if issue.creator_id:
         db.add(
             Notification(
@@ -440,10 +490,13 @@ async def export_issues_pdf(
     station_code: str | None = Query(None),
     status_filter: str | None = Query(None),
     limit: int = Query(200, ge=1, le=500),
+    days: int | None = Query(None, ge=1, le=365),
 ) -> Response:
     from app.models.location import Station
 
     query = select(Issue).options(selectinload(Issue.station)).where(Issue.is_public.is_(True)).limit(limit)
+    if days:
+        query = query.where(Issue.created_at >= datetime.now(timezone.utc) - timedelta(days=days))
     if status_filter:
         query = query.where(Issue.status == status_filter)
     if station_code:
@@ -525,6 +578,32 @@ async def notify_main_admin(
     )
 
 
+async def _lock_repeat_abuser(db: AsyncSession, user_id: uuid.UUID | None) -> bool:
+    """Lock an account once enough of its posts have been removed by staff."""
+    if not user_id:
+        return False
+    author = await db.get(User, user_id)
+    if not author or author.is_locked:
+        return False
+    removed_reports = await db.scalar(
+        select(func.count())
+        .select_from(Issue)
+        .where(Issue.creator_id == user_id, Issue.status == IssueStatus.SPAM.value)
+    )
+    removed_comments = await db.scalar(
+        select(func.count())
+        .select_from(Comment)
+        .where(Comment.user_id == user_id, Comment.is_hidden.is_(True))
+    )
+    if (removed_reports or 0) + (removed_comments or 0) < settings.abuse_lock_threshold:
+        return False
+    author.is_locked = True
+    author.locked_at = datetime.now(timezone.utc)
+    author.locked_reason = "Repeated rule violations"
+    await db.flush()
+    return True
+
+
 class FlagResolveRequest(BaseModel):
     action: Literal["dismiss", "hide"]
     remarks: str | None = Field(None, max_length=500)
@@ -586,14 +665,17 @@ async def resolve_flag(
     enforce_issue_location_scope(officer, issue)
 
     now = datetime.now(timezone.utc)
+    author_id = None
     if body.action == "hide":
         if flag.comment_id:
             comment = await db.get(Comment, flag.comment_id)
+            author_id = comment.user_id if comment else None
             if comment and not comment.is_hidden:
                 comment.is_hidden = True
                 if issue.comment_count > 0:
                     issue.comment_count -= 1
         else:
+            author_id = issue.creator_id
             previous = issue.status
             issue.status = IssueStatus.SPAM.value
             issue.is_public = False
@@ -622,4 +704,8 @@ async def resolve_flag(
         row.resolution = body.action
         resolved += 1
     await db.flush()
-    return Envelope(data={"resolved": resolved, "action": body.action}, meta=Meta())
+    locked = await _lock_repeat_abuser(db, author_id)
+    return Envelope(
+        data={"resolved": resolved, "action": body.action, "author_locked": locked},
+        meta=Meta(),
+    )

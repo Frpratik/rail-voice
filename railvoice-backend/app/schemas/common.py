@@ -182,6 +182,7 @@ class PhotoOut(BaseModel):
     file_size_bytes: int
     scan_status: str
     sort_order: int
+    kind: str = "evidence"
     created_at: datetime
 
 
@@ -232,6 +233,10 @@ class IssueOut(BaseModel):
     creator: dict[str, Any] | None = None
     assignee: dict[str, Any] | None = None
     photos: list[PhotoOut] = []
+    department: str | None = None
+    merged_into_id: uuid.UUID | None = None
+    sla_due_at: datetime | None = None
+    overdue: bool = False
     created_at: datetime
     updated_at: datetime
     resolved_at: datetime | None = None

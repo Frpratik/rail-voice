@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { useT, type TextKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
@@ -48,10 +49,12 @@ const STATUS_MAP: Record<
 };
 
 export function StatusBadge({ status }: { status: string }) {
+  const t = useT();
   const cfg = STATUS_MAP[status] ?? {
     label: status.replace(/_/g, " "),
     variant: "muted" as const,
   };
+  const translated = t(`status.${status}` as TextKey);
   return (
     <span className="inline-flex shrink-0 items-stretch overflow-hidden whitespace-nowrap rounded-sm border border-foreground/25 bg-card font-display text-xs font-semibold uppercase tracking-[0.1em]">
       <span
@@ -65,7 +68,7 @@ export function StatusBadge({ status }: { status: string }) {
           cfg.variant === "muted" && "bg-muted-foreground"
         )}
       />
-      <span className="px-2 py-0.5">{cfg.label}</span>
+      <span className="px-2 py-0.5">{translated ?? cfg.label}</span>
     </span>
   );
 }

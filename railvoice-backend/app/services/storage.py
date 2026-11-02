@@ -80,6 +80,22 @@ class StorageService:
         mime, _ = mimetypes.guess_type(filename)
         return mime or "application/octet-stream"
 
+    def strip_metadata(self, data: bytes, mime: str) -> bytes:
+        """Re-encode without EXIF, so phone photos don't publish the reporter's location."""
+        import io
+        from PIL import Image, ImageOps
+
+        formats = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
+        target = formats.get(mime)
+        if not target:
+            return data
+        image = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
+        if target == "JPEG" and image.mode not in {"RGB", "L"}:
+            image = image.convert("RGB")
+        output = io.BytesIO()
+        image.save(output, format=target, quality=88)
+        return output.getvalue()
+
     def validate_image_bytes(self, data: bytes) -> str:
         """Validate binary magic bytes using Pillow. Returns canonical mime_type (e.g. 'image/jpeg')."""
         import io

@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     anonymous_daily_issue_limit: int = 3
     daily_issue_limit: int = 10
     flag_notify_threshold: int = 3
+    abuse_lock_threshold: int = 3
+    sla_hours_emergency: int = 4
+    sla_sweep_minutes: int = 15
     issue_edit_window_minutes: int = 15
     max_photos_per_issue: int = 5
 

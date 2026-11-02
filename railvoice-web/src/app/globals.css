@@ -90,6 +90,10 @@ html {
   scroll-behavior: smooth;
 }
 
+html[data-text="large"] {
+  font-size: 115%;
+}
+
 body {
   overflow-wrap: break-word;
   background: var(--background);
@@ -280,6 +284,24 @@ body {
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
+  }
+}
+
+/* Printing a station poster: the poster only. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    inset: 0;
+    margin: auto;
   }
 }
 

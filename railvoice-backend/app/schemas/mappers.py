@@ -18,6 +18,7 @@ from app.schemas.common import (
     TimelineEventOut,
     UserOut,
 )
+from app.services.sla import is_overdue, sla_due_at
 from app.services.storage import storage_service
 
 
@@ -84,6 +85,7 @@ def photo_to_out(photo: IssuePhoto) -> PhotoOut:
         file_size_bytes=photo.file_size_bytes,
         scan_status=photo.scan_status,
         sort_order=photo.sort_order,
+        kind=photo.kind or "evidence",
         created_at=photo.created_at,
     )
 
@@ -186,6 +188,10 @@ def issue_to_out(
         creator=creator_out,
         assignee=assignee_out,
         photos=photos,
+        department=issue.department,
+        merged_into_id=issue.merged_into_id,
+        sla_due_at=sla_due_at(issue.created_at, issue.is_emergency, issue.severity),
+        overdue=is_overdue(issue.status, issue.created_at, issue.is_emergency, issue.severity),
         created_at=issue.created_at,
         updated_at=issue.updated_at,
         resolved_at=issue.resolved_at,

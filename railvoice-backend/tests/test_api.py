@@ -51,15 +51,15 @@ async def test_report_support_and_mine_flow(client, auth_headers, bandra_station
 
 
 @pytest.mark.asyncio
-async def test_anonymous_user_cannot_submit_issue(
+async def test_anonymous_session_can_submit_issue(
     client, anonymous_headers, bandra_station_id
 ):
-    response = await client.post(
-        f"{API}/issues",
-        headers=anonymous_headers,
-        json={
-            "description": "Anonymous passengers must sign in before submitting this report",
-            "station_id": bandra_station_id,
-        },
-    )
-    assert response.status_code == 401
+    payload = {
+        "description": "Anonymous passengers can report without creating an account",
+        "station_id": bandra_station_id,
+    }
+    response = await client.post(f"{API}/issues", headers=anonymous_headers, json=payload)
+    assert response.status_code == 201
+
+    no_identity = await client.post(f"{API}/issues", json=payload)
+    assert no_identity.status_code == 401

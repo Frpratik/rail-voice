@@ -1,5 +1,6 @@
 "use client";
 
+import { stationName, useLangStore, useT } from "@/lib/i18n";
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -19,11 +20,13 @@ export function LineMap({
   onSelect: (code: string) => void;
 }) {
   const ordered = [...stations].sort((a, b) => a.sequence_order - b.sequence_order);
+  const t = useT();
+  const lang = useLangStore((s) => s.lang);
 
   return (
     <div className="min-w-0 overflow-hidden border-2 border-foreground/70 bg-card">
       <div className="flex items-center justify-between bg-primary px-4 py-2.5 text-primary-foreground">
-        <p className="label-caps text-sm">Western line</p>
+        <p className="label-caps text-sm">{t("home.line")}</p>
         {selected && (
           <button
             type="button"
@@ -31,7 +34,7 @@ export function LineMap({
             className="label-caps text-xs text-accent-foreground underline-offset-2 hover:underline"
             style={{ color: "var(--signal)" }}
           >
-            Show all
+            {t("home.showAll")}
           </button>
         )}
       </div>
@@ -97,7 +100,7 @@ export function LineMap({
                     active ? "bg-accent" : "bg-card group-hover:bg-accent/60"
                   )}
                 />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{st.name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{stationName(st, lang)}</span>
                 <span className="font-board text-[11px] text-muted-foreground">{st.code}</span>
                 <span
                   className={cn(

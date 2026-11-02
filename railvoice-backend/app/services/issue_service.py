@@ -17,9 +17,11 @@ from app.core.security import (
     create_refresh_token,
     hash_value,
 )
+from app.services.engagement import contains_abuse, follow_issue
 from app.services.issue_actions import enforce_daily_limit, notify_staff
+from app.services.sla import priority_score
 from app.models.issue import Comment, Issue, IssueSupport, IssueTimelineEvent
-from app.models.location import Station
+from app.models.location import IssueCategory, Station
 from app.models.user import OtpRequest, RefreshToken, Role, User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -245,6 +247,8 @@ class IssueService:
         latitude: float | None = None,
         longitude: float | None = None,
     ) -> Issue:
+        if contains_abuse(title, description):
+            raise ValueError("Please remove offensive language from your report")
         await enforce_daily_limit(db, creator)
         if creator.is_anonymous:
             day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -263,6 +267,11 @@ class IssueService:
         if not station:
             raise ValueError("Station not found")
 
+        severity = 3
+        if category_id:
+            category = await db.get(IssueCategory, category_id)
+            severity = (category.default_severity if category else None) or 3
+
         zone_code = station.zone.code if station.zone else "WR"
         issue_number = await self.generate_issue_number(db, zone_code)
         now = datetime.now(timezone.utc)
@@ -279,6 +288,10 @@ class IssueService:
             description=description.strip(),
             status=IssueStatus.SUBMITTED.value,
             is_emergency=is_emergency,
+            severity=severity,
+            priority_score=priority_score(
+                is_emergency=is_emergency, severity=severity, support_count=1
+            ),
             is_public=True,
             train_number=train_number,
             coach_number=coach_number,
@@ -310,6 +323,9 @@ class IssueService:
             )
         )
         await db.flush()
+
+        if not creator.is_anonymous:
+            await follow_issue(db, issue.id, creator.id)
 
         await notify_staff(
             db,
@@ -344,6 +360,12 @@ class IssueService:
             update(Issue).where(Issue.id == issue_id).values(support_count=Issue.support_count + 1)
         )
         await db.refresh(issue)
+        issue.priority_score = priority_score(
+            is_emergency=issue.is_emergency,
+            severity=issue.severity,
+            support_count=issue.support_count,
+        )
+        await follow_issue(db, issue.id, user.id)
         return support
 
     async def get_issue_detail(self, db: AsyncSession, issue_id: uuid.UUID) -> Issue | None:

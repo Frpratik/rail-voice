@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import {
+  ArrowLeftRight,
+  BarChart3,
   FileText,
   Flag,
+  History,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -18,8 +21,11 @@ const links = [
   { href: "/admin/dashboard", icon: LayoutDashboard, label: "Overview" },
   { href: "/admin/issues", icon: Inbox, label: "Issue queue" },
   { href: "/admin/flags", icon: Flag, label: "Flagged" },
+  { href: "/admin/analytics", icon: BarChart3, label: "Analytics" },
+  { href: "/admin/handover", icon: ArrowLeftRight, label: "Handover" },
   { href: "/admin/reports", icon: FileText, label: "Reports" },
   { href: "/admin/users", icon: Users, label: "Users" },
+  { href: "/admin/audit", icon: History, label: "Audit log" },
 ];
 
 export function AdminSidebar({ pathname }: { pathname: string }) {

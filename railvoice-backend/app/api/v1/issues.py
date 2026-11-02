@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -6,8 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import get_current_user_optional, get_db, get_reporter_user
-from app.models.issue import Comment, Issue, IssueFlag, IssueSupport
+from app.core.deps import get_current_user, get_current_user_optional, get_db, get_reporter_user
+from app.core.enums import TERMINAL_STATUSES
+from app.models.issue import Comment, Issue, IssueFlag, IssueFollower, IssueRating, IssueSupport
 from app.models.location import IssueCategory, Station, Zone
 from app.models.user import User
 from app.schemas.common import (
@@ -23,7 +25,7 @@ from app.schemas.common import (
     WithdrawRequest,
 )
 from app.schemas.mappers import issue_detail_to_out, issue_to_out, station_to_out
-from app.services import issue_actions
+from app.services import engagement, issue_actions
 from app.services.issue_service import issue_service
 
 router = APIRouter(tags=["Issues", "Stations"])
@@ -86,7 +88,7 @@ async def get_station(
 async def create_issue(
     body: IssueCreateRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[User, Depends(get_reporter_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Envelope[dict]:
     category_id = body.category_id
     if not category_id and body.category_code:
@@ -206,6 +208,8 @@ async def get_issue(
     is_creator = bool(user and issue.creator_id == user.id)
     supported = False
     flagged = False
+    following = False
+    my_rating = None
     if user:
         supported = bool(
             await db.scalar(
@@ -225,6 +229,19 @@ async def get_issue(
                 )
             )
         )
+    if user:
+        following = bool(
+            await db.scalar(
+                select(func.count())
+                .select_from(IssueFollower)
+                .where(IssueFollower.issue_id == issue.id, IssueFollower.user_id == user.id)
+            )
+        )
+        my_rating = await db.scalar(
+            select(IssueRating.rating).where(
+                IssueRating.issue_id == issue.id, IssueRating.user_id == user.id
+            )
+        )
     detail.viewer = {
         "signed_in": bool(user and not user.is_anonymous),
         "is_creator": is_creator,
@@ -232,6 +249,10 @@ async def get_issue(
         "flagged": flagged,
         "can_withdraw": is_creator and issue.status in issue_actions.WITHDRAWABLE,
         "can_confirm": is_creator and issue.status in issue_actions.CONFIRMABLE,
+        "following": following,
+        "my_rating": my_rating,
+        "can_rate": (is_creator or supported) and issue.status in engagement.RATEABLE,
+        "rating": await engagement.rating_summary(db, issue.id),
     }
     return Envelope(data=detail, meta=Meta())
 
@@ -241,6 +262,9 @@ async def list_issues(
     db: Annotated[AsyncSession, Depends(get_db)],
     station_code: str | None = Query(None),
     status: str | None = Query(None),
+    category_code: str | None = Query(None),
+    open_only: bool = Query(False),
+    since_days: int | None = Query(None, ge=1, le=365),
     sort: str = Query("most_supported"),
     limit: int = Query(20, ge=1, le=100),
 ) -> Envelope[dict]:
@@ -253,9 +277,17 @@ async def list_issues(
         query = query.join(Issue.station).where(Station.code == station_code.upper())
     if status:
         query = query.where(Issue.status == status)
+    if category_code:
+        query = query.join(Issue.category).where(IssueCategory.code == category_code.lower())
+    if open_only:
+        query = query.where(Issue.status.notin_([s.value for s in TERMINAL_STATUSES]))
+    if since_days:
+        query = query.where(Issue.created_at >= datetime.now(timezone.utc) - timedelta(days=since_days))
 
     if sort == "newest":
         query = query.order_by(Issue.created_at.desc())
+    elif sort == "urgent":
+        query = query.order_by(Issue.priority_score.desc(), Issue.created_at.desc())
     else:
         query = query.order_by(Issue.support_count.desc(), Issue.created_at.desc())
 

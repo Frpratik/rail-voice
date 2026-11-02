@@ -2,9 +2,12 @@ from app.models.issue import (
     Comment,
     Issue,
     IssueFlag,
+    IssueFollower,
     IssuePhoto,
+    IssueRating,
     IssueSupport,
     IssueTimelineEvent,
+    StationFavourite,
     SystemConfig,
 )
 from app.models.location import Division, IssueCategory, Platform, Station, Zone
@@ -36,6 +39,9 @@ __all__ = [
     "IssueSupport",
     "IssueTimelineEvent",
     "IssueFlag",
+    "IssueFollower",
+    "IssueRating",
+    "StationFavourite",
     "IssuePhoto",
     "Comment",
     "Notification",

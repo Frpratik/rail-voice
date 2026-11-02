@@ -13,24 +13,42 @@ import {
   ThumbsUp,
   FileText,
   Image as ImageIcon,
+  LocateFixed,
   MapPin,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input, Label, Textarea } from "@/components/ui/input";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/empty-state";
 import { StatusBadge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
+import { useT } from "@/lib/i18n";
+import { compressImage, currentPosition } from "@/lib/image";
 
 const CATEGORIES = [
   { id: "platform_cleanliness", label: "Cleanliness & Waste" },
   { id: "station_infrastructure", label: "Station Infrastructure" },
   { id: "lifts_escalators", label: "Lifts & Escalators" },
+  { id: "accessibility", label: "Wheelchair & Access" },
   { id: "safety_security", label: "Safety & Hazard" },
+  { id: "womens_safety", label: "Women's Safety" },
   { id: "train_coach", label: "Train & Coach" },
+  { id: "overcrowding", label: "Overcrowding" },
   { id: "facilities", label: "Ticket Counters & Fans" },
 ];
+
+const AREAS = [
+  ...Array.from({ length: 10 }, (_, i) => `PF ${i + 1}`),
+  "FOB",
+  "Entrance",
+  "Ticket",
+  "Toilet",
+  "Train",
+];
+
+const DRAFT_KEY = "railvoice-report-draft";
 
 function useDebounced<T>(value: T, ms = 500): T {
   const [debounced, setDebounced] = useState(value);
@@ -44,6 +62,11 @@ function useDebounced<T>(value: T, ms = 500): T {
 export default function ReportPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const t = useT();
+  const user = useAuthStore((s) => s.user);
+  const anonymousSessionId = useAuthStore((s) => s.anonymousSessionId);
+  const setAnonymous = useAuthStore((s) => s.setAnonymous);
+  const [locating, setLocating] = useState(false);
   const [differentProblem, setDifferentProblem] = useState(false);
   const [stationId, setStationId] = useState("");
   const [categoryCode, setCategoryCode] = useState("platform_cleanliness");
@@ -60,6 +83,71 @@ export default function ReportPage() {
     queryFn: () => api.stations.list({ zone_code: "WR" }),
   });
   const stations = stationsData?.data ?? [];
+
+  // Bring back an unfinished report: signal on a platform comes and goes.
+  useEffect(() => {
+    let saved: { stationId?: string; categoryCode?: string; title?: string; description?: string } | null =
+      null;
+    try {
+      saved = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null");
+    } catch {
+      return;
+    }
+    if (!saved?.description) return;
+    const draft = saved;
+    queueMicrotask(() => {
+      setStationId(draft.stationId ?? "");
+      setCategoryCode(draft.categoryCode ?? "platform_cleanliness");
+      setTitle(draft.title ?? "");
+      setDescription(draft.description ?? "");
+      toast.info(t("report.draft"));
+    });
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!description.trim()) return;
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ stationId, categoryCode, title, description })
+      );
+    } catch {
+      /* Private mode: nothing to restore later, and that's fine. */
+    }
+  }, [stationId, categoryCode, title, description]);
+
+  const detectStation = async () => {
+    setLocating(true);
+    const position = await currentPosition();
+    if (!position) {
+      setLocating(false);
+      toast.error("Couldn't get your location. Check your browser's location permission.");
+      return;
+    }
+    try {
+      const res = await api.stations.nearest(position.coords.latitude, position.coords.longitude);
+      const nearest = res.data.items[0];
+      if (nearest) {
+        setStationId(nearest.id);
+        toast.success(`${nearest.name} (${nearest.distance_km} km away)`);
+      }
+    } catch {
+      toast.error("Couldn't find the nearest station.");
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const reportAnonymously = async () => {
+    try {
+      const res = await api.auth.anonymous();
+      setAnonymous(res.data.anonymous_session_id);
+    } catch {
+      toast.error("Couldn't start. Please try again.");
+    }
+  };
 
   const debouncedText = useDebounced(`${title} ${description}`.trim());
   const { data: similarData } = useQuery({
@@ -94,9 +182,9 @@ export default function ReportPage() {
 
   const showEmergencyNotice = isEmergency || categoryCode === "safety_security";
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selected = Array.from(e.target.files);
+      const selected = await Promise.all(Array.from(e.target.files).map((f) => compressImage(f)));
       setPhotoFiles((prev) => [...prev, ...selected].slice(0, 3));
     }
   };
@@ -117,6 +205,11 @@ export default function ReportPage() {
     }
     if (description.trim().length < 10) {
       toast.error("Please provide at least 10 characters in the problem description");
+      return;
+    }
+
+    if (!user && !anonymousSessionId) {
+      toast.error("Sign in, or choose to report without signing in");
       return;
     }
 
@@ -145,7 +238,12 @@ export default function ReportPage() {
         }
       }
 
-      toast.success("Problem reported successfully! Station staff have been notified.");
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* Nothing was saved in private mode. */
+      }
+      toast.success("Problem reported. Station staff have been notified.");
       router.push(`/issues/${issueId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit grievance");
@@ -157,10 +255,28 @@ export default function ReportPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <PageHeader
-        eyebrow="Citizen Reporting"
-        title="Report a Problem"
-        description="Submit a station or train grievance directly to Western Railway station managers."
+        eyebrow="Passenger report"
+        title={t("report.title")}
+        description="Your report goes straight to the staff at that station."
       />
+
+      {!user && !anonymousSessionId && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-2 border-accent p-4">
+          <p className="text-sm">
+            Sign in to track your report and get updates, or send it anonymously.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/login?next=/report">
+              <Button size="sm" variant="accent">
+                {t("nav.signIn")}
+              </Button>
+            </Link>
+            <Button size="sm" variant="outline" onClick={() => void reportAnonymously()}>
+              {t("report.anon")}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Station Selector */}
@@ -171,7 +287,20 @@ export default function ReportPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="station">Station on Western Railway *</Label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label htmlFor="station" className="mb-0">
+                {t("report.station")} *
+              </Label>
+              <button
+                type="button"
+                onClick={() => void detectStation()}
+                disabled={locating}
+                className="label-caps inline-flex items-center gap-1.5 text-xs text-accent hover:underline disabled:opacity-50"
+              >
+                <LocateFixed className="h-3.5 w-3.5" />
+                {t("report.useLocation")}
+              </button>
+            </div>
             <select
               id="station"
               value={stationId}
@@ -191,7 +320,7 @@ export default function ReportPage() {
 
           <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="train">Train / Local (Optional)</Label>
+              <Label htmlFor="train">{t("report.train")}</Label>
               <Input
                 id="train"
                 placeholder="e.g. 90123 / Fast Local"
@@ -200,13 +329,15 @@ export default function ReportPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="coach">Coach / Platform (Optional)</Label>
-              <Input
-                id="coach"
-                placeholder="e.g. Platform 2 / FC-2"
-                value={coachNumber}
-                onChange={(e) => setCoachNumber(e.target.value)}
-              />
+              <Label htmlFor="coach">{t("report.platform")}</Label>
+              <Select id="coach" value={coachNumber} onChange={(e) => setCoachNumber(e.target.value)}>
+                <option value="">—</option>
+                {AREAS.map((area) => (
+                  <option key={area} value={area}>
+                    {area}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
         </Card>
@@ -219,7 +350,7 @@ export default function ReportPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Category</Label>
+            <Label>{t("report.category")}</Label>
             <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-3 gap-2">
               {CATEGORIES.map((cat) => (
                 <button
@@ -239,7 +370,7 @@ export default function ReportPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">Summary / Short Title</Label>
+            <Label htmlFor="title">{t("report.summary")}</Label>
             <Input
               id="title"
               placeholder="e.g. Escalator not working at Platform 1 North Exit"
@@ -250,7 +381,7 @@ export default function ReportPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="desc">Detailed Description *</Label>
+            <Label htmlFor="desc">{t("report.details")} *</Label>
             <Textarea
               id="desc"
               rows={4}
@@ -273,7 +404,7 @@ export default function ReportPage() {
             <label htmlFor="emergency" className="cursor-pointer text-xs leading-relaxed text-foreground">
               <span className="font-bold text-destructive block flex items-center gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                Urgent Safety Hazard?
+                {t("report.urgent")}
               </span>
               Check this box if this problem poses an immediate danger to passenger safety (e.g. live wire, track obstruction, broken paver tile near train door).
             </label>
@@ -288,7 +419,7 @@ export default function ReportPage() {
             <Phone className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
             <p className="leading-relaxed">
               <strong className="text-display block text-lg text-destructive">
-                If someone is in danger, call now
+                {t("report.danger")}
               </strong>
               Railway helpline <strong>139</strong> · RPF security <strong>182</strong> · Emergency{" "}
               <strong>112</strong>. This form is read by station staff during working hours and is
@@ -357,7 +488,7 @@ export default function ReportPage() {
         <Card className="p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2">
             <Camera className="h-5 w-5 text-accent" />
-            <h2 className="text-base font-semibold">3. Evidence Photo (Optional)</h2>
+            <h2 className="text-base font-semibold">{t("report.photos")}</h2>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -385,12 +516,12 @@ export default function ReportPage() {
               <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-card-border bg-background transition-colors hover:border-accent hover:bg-accent/5">
                 <ImageIcon className="h-5 w-5 text-muted-foreground" />
                 <span className="mt-1 text-[10px] font-medium text-muted-foreground">
-                  Add Photo
+                  {t("report.addPhoto")}
                 </span>
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={handlePhotoSelect}
+                  onChange={(e) => void handlePhotoSelect(e)}
                   className="hidden"
                 />
               </label>
@@ -403,9 +534,9 @@ export default function ReportPage() {
           variant="accent"
           size="lg"
           disabled={submitting}
-          className="w-full gap-2 text-base font-semibold shadow-lg shadow-accent/20"
+          className="w-full gap-2 text-base font-semibold"
         >
-          {submitting ? "Submitting Grievance..." : "Submit Problem Report"}
+          {submitting ? t("report.submitting") : t("report.submit")}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </form>

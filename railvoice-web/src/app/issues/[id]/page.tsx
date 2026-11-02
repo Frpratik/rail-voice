@@ -5,7 +5,18 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, ArrowLeft, Flag, MessageSquare, Send, Share2, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Bell,
+  BellOff,
+  Flag,
+  MessageSquare,
+  Send,
+  Share2,
+  Star,
+  Upload,
+} from "lucide-react";
 import { toast } from "sonner";
 import { IssueTimeline } from "@/components/issues/issue-timeline";
 import { SupportButton } from "@/components/issues/support-button";
@@ -16,6 +27,8 @@ import { Select, Textarea } from "@/components/ui/input";
 import { IssueCardSkeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { useT } from "@/lib/i18n";
+import { compressImage } from "@/lib/image";
 import { formatRelativeTime } from "@/lib/utils";
 
 export default function IssueDetailPage() {
@@ -27,6 +40,8 @@ export default function IssueDetailPage() {
   const [flagTarget, setFlagTarget] = useState<{ kind: "issue" | "comment"; id: string } | null>(null);
   const [flagReason, setFlagReason] = useState("spam");
   const [fixNote, setFixNote] = useState("");
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
+  const t = useT();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["issue", id],
@@ -44,9 +59,11 @@ export default function IssueDetailPage() {
   });
 
   const commentMutation = useMutation({
-    mutationFn: (text: string) => api.comments.create(id, { body: text }),
+    mutationFn: (text: string) =>
+      api.comments.create(id, { body: text, parent_id: replyTo?.id }),
     onSuccess: () => {
       setCommentText("");
+      setReplyTo(null);
       toast.success("Comment posted successfully");
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
     },
@@ -91,6 +108,24 @@ export default function IssueDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const followMutation = useMutation({
+    mutationFn: (on: boolean) => api.issues.follow(id, on),
+    onSuccess: (res) => {
+      toast.success(res.data.following ? "You'll get updates on this report" : "Unfollowed");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rateMutation = useMutation({
+    mutationFn: (rating: number) => api.issues.rate(id, { rating }),
+    onSuccess: () => {
+      toast.success("Thanks for rating the fix");
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   if (isLoading) return <IssueCardSkeleton />;
   if (error || !data) {
     return (
@@ -107,7 +142,12 @@ export default function IssueDetailPage() {
   }
 
   const { issue, timeline, comments, viewer } = data.data;
-  const photos = issue.photos ?? [];
+  const photos = (issue.photos ?? []).filter((p) => p.kind !== "resolution");
+  const proofPhotos = (issue.photos ?? []).filter((p) => p.kind === "resolution");
+  // Replies sit directly under the comment they answer.
+  const threaded = comments
+    .filter((c) => !c.parent_id)
+    .flatMap((c) => [c, ...comments.filter((r) => r.parent_id === c.id)]);
 
   const share = async () => {
     const url = window.location.href;
@@ -124,7 +164,7 @@ export default function IssueDetailPage() {
     if (!file) return;
     setUploading(true);
     try {
-      await api.issues.uploadPhoto(id, file);
+      await api.issues.uploadPhoto(id, await compressImage(file));
       toast.success("Photo uploaded");
       queryClient.invalidateQueries({ queryKey: ["issue", id] });
     } catch (err) {
@@ -155,10 +195,24 @@ export default function IssueDetailPage() {
           <ArrowLeft className="h-4 w-4" />
           Corridor Feed
         </Link>
-        <Button variant="ghost" size="sm" onClick={share} className="gap-1.5">
-          <Share2 className="h-4 w-4" />
-          Share Grievance
-        </Button>
+        <div className="flex flex-wrap justify-end gap-1">
+          {viewer?.signed_in && (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={followMutation.isPending}
+              onClick={() => followMutation.mutate(!viewer.following)}
+              className="gap-1.5"
+            >
+              {viewer.following ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+              {viewer.following ? t("issue.following") : t("issue.follow")}
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={share} className="gap-1.5">
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
+        </div>
       </div>
 
       {/* Main Grievance Header */}
@@ -241,8 +295,58 @@ export default function IssueDetailPage() {
           </div>
         )}
 
+        {proofPhotos.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              After the fix: staff photos ({proofPhotos.length})
+            </h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {proofPhotos.map((photo) => (
+                <div
+                  key={photo.id}
+                  className="aspect-video overflow-hidden border-2 border-success/50 bg-muted/30"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photo.url} alt="After the fix" className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {viewer?.rating?.count > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Fix rated <strong className="font-board text-foreground">{viewer.rating.average}/5</strong>{" "}
+            by {viewer.rating.count} {viewer.rating.count === 1 ? "person" : "people"}
+          </p>
+        )}
+
+        {viewer?.can_rate && (
+          <div className="space-y-2 border-2 border-card-border p-4">
+            <p className="text-display text-lg">
+              {viewer.my_rating ? "Your rating of the fix" : "How well was this fixed?"}
+            </p>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-label={`${value} out of 5`}
+                  disabled={rateMutation.isPending}
+                  onClick={() => rateMutation.mutate(value)}
+                  className="p-1 text-accent"
+                >
+                  <Star
+                    className={`h-6 w-6 ${(viewer.my_rating ?? 0) >= value ? "fill-current" : ""}`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Add photo if logged in */}
-        {user && (
+        {(viewer?.is_creator || (user?.roles ?? []).some((r) => r !== "passenger")) && (
           <div className="pt-2">
             <label className="inline-flex items-center gap-2 text-xs font-semibold text-accent cursor-pointer hover:underline">
               <Upload className="h-3.5 w-3.5" />
@@ -338,7 +442,7 @@ export default function IssueDetailPage() {
       {/* Official Status Progression Timeline */}
       <Card className="p-4 sm:p-8 space-y-4">
         <h2 className="text-base font-semibold text-foreground">
-          Official Action Timeline
+          {t("issue.timeline")}
         </h2>
         <IssueTimeline events={timeline} />
       </Card>
@@ -348,7 +452,7 @@ export default function IssueDetailPage() {
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-accent" />
           <h2 className="text-base font-semibold text-foreground">
-            Community Comments ({comments.length})
+            {t("issue.comments")} ({comments.length})
           </h2>
         </div>
 
@@ -358,8 +462,11 @@ export default function IssueDetailPage() {
           </p>
         ) : (
           <div className="space-y-3 divide-y divide-card-border">
-            {comments.map((c) => (
-              <div key={c.id} className="pt-3 first:pt-0 space-y-1">
+            {threaded.map((c) => (
+              <div
+                key={c.id}
+                className={`pt-3 first:pt-0 space-y-1 ${c.parent_id ? "ml-5 border-l-2 border-card-border pl-3" : ""}`}
+              >
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span className="font-semibold text-foreground">
                     {c.author.display_name}
@@ -381,12 +488,29 @@ export default function IssueDetailPage() {
                 <p className="text-xs text-foreground leading-relaxed">
                   {c.body}
                 </p>
+                {viewer?.signed_in && !c.parent_id && (
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo({ id: c.id, name: c.author.display_name })}
+                    className="label-caps text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    {t("issue.reply")}
+                  </button>
+                )}
               </div>
             ))}
           </div>
         )}
 
         <form onSubmit={handleCommentSubmit} className="pt-2 space-y-2">
+          {replyTo && (
+            <p className="flex items-center justify-between gap-2 bg-muted px-3 py-1.5 text-xs">
+              <span>Replying to {replyTo.name}</span>
+              <button type="button" className="underline" onClick={() => setReplyTo(null)}>
+                Cancel
+              </button>
+            </p>
+          )}
           <Textarea
             rows={2}
             placeholder={user ? "Write a comment or operational update..." : "Sign in to join the discussion..."}

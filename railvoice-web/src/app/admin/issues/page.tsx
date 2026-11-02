@@ -5,14 +5,48 @@ import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Flame, ShieldAlert, UserCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Camera,
+  CheckCircle2,
+  Flame,
+  ShieldAlert,
+  UserCheck,
+} from "lucide-react";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label, Textarea } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/empty-state";
 import { api } from "@/lib/api";
+import { compressImage } from "@/lib/image";
+import type { Issue } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
+
+const TEMPLATES = [
+  "Checked on site. The problem is confirmed.",
+  "Sent to the responsible department. Work will be scheduled.",
+  "Waiting for materials. We'll update this when work restarts.",
+  "Work is finished. Please check and confirm it's fixed.",
+  "Not a railway matter, so we can't act on this report.",
+];
+
+function SlaChip({ issue, now }: { issue: Issue; now: number }) {
+  if (!issue.sla_due_at || ["completed", "closed", "verified_complete", "rejected"].includes(issue.status)) {
+    return null;
+  }
+  const hours = Math.round((new Date(issue.sla_due_at).getTime() - now) / 3_600_000);
+  return (
+    <span
+      className={`font-board inline-block px-1.5 py-0.5 text-[11px] ${
+        issue.overdue ? "bg-destructive text-white" : "bg-muted text-foreground"
+      }`}
+    >
+      {issue.overdue ? `${Math.abs(hours)}h overdue` : `${hours}h left`}
+    </span>
+  );
+}
 
 export default function AdminIssuesPage() {
   const queryClient = useQueryClient();
@@ -24,12 +58,42 @@ export default function AdminIssuesPage() {
     "division"
   );
   const [statusFilter, setStatusFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [mineOnly, setMineOnly] = useState(false);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [checked, setChecked] = useState<string[]>([]);
+  const [now] = useState(() => Date.now());
+  const [bulkStatus, setBulkStatus] = useState("verified");
+  const [bulkRemarks, setBulkRemarks] = useState("");
+  const [note, setNote] = useState("");
+  const [mergeTarget, setMergeTarget] = useState("");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin-issues", statusFilter],
-    queryFn: () => api.admin.issues({ status_filter: statusFilter || undefined }),
+    queryKey: ["admin-issues", statusFilter, departmentFilter, mineOnly, overdueOnly],
+    queryFn: () =>
+      api.admin.issues({
+        status_filter: statusFilter || undefined,
+        department: departmentFilter || undefined,
+        assigned_to_me: mineOnly,
+        overdue_only: overdueOnly,
+      }),
     retry: false,
   });
+
+  const { data: departmentsData } = useQuery({
+    queryKey: ["admin-departments"],
+    queryFn: () => api.admin.departments(),
+    retry: false,
+  });
+  const departments = departmentsData?.data.items ?? [];
+
+  const { data: detailData } = useQuery({
+    queryKey: ["admin-issue-detail", selectedId],
+    queryFn: () => api.admin.issueDetail(selectedId!),
+    enabled: !!selectedId,
+    retry: false,
+  });
+  const notes = (detailData?.data.timeline ?? []).filter((e) => e.event_type === "internal_note");
 
   const { data: officersData } = useQuery({
     queryKey: ["admin-officers"],
@@ -80,6 +144,66 @@ export default function AdminIssuesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const refreshDetail = () =>
+    queryClient.invalidateQueries({ queryKey: ["admin-issue-detail", selectedId] });
+
+  const noteMutation = useMutation({
+    mutationFn: () => api.admin.addNote(selectedId!, note.trim()),
+    onSuccess: () => {
+      setNote("");
+      refreshDetail();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const departmentMutation = useMutation({
+    mutationFn: (department: string) => api.admin.setDepartment(selectedId!, department || null),
+    onSuccess: () => {
+      toast.success("Department updated");
+      queryClient.invalidateQueries({ queryKey: ["admin-issues"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: () => api.admin.merge(selectedId!, mergeTarget),
+    onSuccess: (res) => {
+      toast.success(`Merged. ${res.data.backers_added} backers moved across.`);
+      setMergeTarget("");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: () =>
+      api.admin.bulkStatus({ issue_ids: checked, status: bulkStatus, remarks: bulkRemarks.trim() }),
+    onSuccess: (res) => {
+      const { updated, skipped } = res.data;
+      toast.success(
+        `${updated.length} updated${skipped.length ? `, ${skipped.length} skipped (wrong status)` : ""}`
+      );
+      setChecked([]);
+      setBulkRemarks("");
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const uploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedId) return;
+    try {
+      await api.issues.uploadPhoto(selectedId, await compressImage(file), "resolution");
+      toast.success("Proof photo added to the public report");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    }
+  };
+
+  const toggleChecked = (id: string) =>
+    setChecked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
   const issues = data?.data.items ?? [];
   const officers = officersData?.data.items ?? [];
   const selected = issues.find((i) => i.id === selectedId);
@@ -87,9 +211,9 @@ export default function AdminIssuesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Triage & Operations"
-        title="Issue Triage Queue"
-        description="Review incoming citizen reports, verify on-ground conditions, assign staff, or escalate to Divisional Headquarters."
+        eyebrow="Issue queue"
+        title="Reports to work on"
+        description="Most urgent first. Verify, assign, update or escalate, and leave private notes for your team."
       />
 
       {/* Filter Tabs */}
@@ -118,6 +242,42 @@ export default function AdminIssuesPage() {
             {tab.label}
           </button>
         ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={mineOnly}
+          onClick={() => setMineOnly((v) => !v)}
+          className={`label-caps border-2 px-3 py-1.5 text-xs ${
+            mineOnly ? "border-primary bg-primary text-primary-foreground" : "border-foreground/30 text-muted-foreground"
+          }`}
+        >
+          Assigned to me
+        </button>
+        <button
+          type="button"
+          aria-pressed={overdueOnly}
+          onClick={() => setOverdueOnly((v) => !v)}
+          className={`label-caps border-2 px-3 py-1.5 text-xs ${
+            overdueOnly ? "border-destructive bg-destructive text-white" : "border-foreground/30 text-muted-foreground"
+          }`}
+        >
+          Overdue
+        </button>
+        <select
+          aria-label="Department"
+          value={departmentFilter}
+          onChange={(e) => setDepartmentFilter(e.target.value)}
+          className="h-8 border-2 border-foreground/30 bg-card px-2 text-xs capitalize"
+        >
+          <option value="">All departments</option>
+          {departments.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Phones: cards. The table below takes over from md up. */}
@@ -160,35 +320,70 @@ export default function AdminIssuesPage() {
               <span>{issue.category?.name ?? "General"}</span>
               <span>{issue.support_count} backing</span>
               <span>{formatRelativeTime(issue.created_at)}</span>
+              <SlaChip issue={issue} now={now} />
             </span>
           </button>
         ))}
       </div>
+
+      {checked.length > 0 && (
+        <Card className="flex flex-col gap-2 border-2 border-primary p-3 md:flex-row md:items-center">
+          <p className="label-caps shrink-0 text-xs">{checked.length} selected</p>
+          <select
+            aria-label="New status"
+            value={bulkStatus}
+            onChange={(e) => setBulkStatus(e.target.value)}
+            className="h-11 border border-card-border bg-card px-2 text-xs md:h-9"
+          >
+            <option value="verified">Verified</option>
+            <option value="action_started">Action started</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <input
+            value={bulkRemarks}
+            onChange={(e) => setBulkRemarks(e.target.value)}
+            placeholder="Remark for the timeline (required)"
+            className="h-11 min-w-0 flex-1 border border-card-border bg-card px-2 text-xs md:h-9"
+          />
+          <Button
+            size="sm"
+            variant="accent"
+            disabled={bulkMutation.isPending || bulkRemarks.trim().length < 5}
+            onClick={() => bulkMutation.mutate()}
+          >
+            Update all
+          </Button>
+        </Card>
+      )}
 
       <Card className="hidden overflow-hidden p-0 md:block">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[660px] text-left text-sm">
             <thead>
               <tr className="border-b border-card-border bg-muted/40 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                <th className="px-5 py-3.5">Upvotes</th>
+                <th className="px-3 py-3.5">
+                  <span className="sr-only">Select</span>
+                </th>
+                <th className="px-5 py-3.5">Backing</th>
                 <th className="px-5 py-3.5">Grievance</th>
                 <th className="px-5 py-3.5">Station</th>
                 <th className="px-5 py-3.5">Category</th>
                 <th className="px-5 py-3.5">Status</th>
-                <th className="px-5 py-3.5">Reported</th>
+                <th className="px-5 py-3.5">Target</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">
                     Loading station triage queue…
                   </td>
                 </tr>
               )}
               {!isLoading && issues.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">
                     No grievances found in this filter.
                   </td>
                 </tr>
@@ -201,6 +396,14 @@ export default function AdminIssuesPage() {
                   }`}
                   onClick={() => setSelectedId(issue.id)}
                 >
+                  <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${issue.issue_number}`}
+                      checked={checked.includes(issue.id)}
+                      onChange={() => toggleChecked(issue.id)}
+                    />
+                  </td>
                   <td className="px-5 py-4">
                     <span className="inline-flex items-center gap-1 font-bold text-accent text-xs">
                       <Flame className="h-3.5 w-3.5" />
@@ -226,7 +429,7 @@ export default function AdminIssuesPage() {
                     <StatusBadge status={issue.status} />
                   </td>
                   <td className="px-5 py-4 text-xs text-muted-foreground">
-                    {formatRelativeTime(issue.created_at)}
+                    <SlaChip issue={issue} now={now} />
                   </td>
                 </tr>
               ))}
@@ -379,9 +582,108 @@ export default function AdminIssuesPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-2 border border-card-border bg-background p-4">
+                  <Label htmlFor="department">Department</Label>
+                  <select
+                    id="department"
+                    value={selected.department ?? ""}
+                    onChange={(e) => departmentMutation.mutate(e.target.value)}
+                    className="h-11 w-full border border-card-border bg-card px-3 text-xs capitalize md:h-9"
+                  >
+                    <option value="">Not set</option>
+                    {departments.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="label-caps mt-2 inline-flex cursor-pointer items-center gap-1.5 text-xs text-accent hover:underline">
+                    <Camera className="h-3.5 w-3.5" /> Add proof-of-fix photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => void uploadProof(e)}
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-2 border border-card-border bg-background p-4">
+                  <Label htmlFor="merge">Merge duplicate into</Label>
+                  <select
+                    id="merge"
+                    value={mergeTarget}
+                    onChange={(e) => setMergeTarget(e.target.value)}
+                    className="h-11 w-full border border-card-border bg-card px-3 text-xs md:h-9"
+                  >
+                    <option value="">Choose a report at this station</option>
+                    {issues
+                      .filter(
+                        (i) =>
+                          i.id !== selected.id &&
+                          i.location.station.code === selected.location.station.code
+                      )
+                      .map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.issue_number}: {(i.title ?? i.description).slice(0, 40)}
+                        </option>
+                      ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    disabled={!mergeTarget || mergeMutation.isPending}
+                    onClick={() => mergeMutation.mutate()}
+                  >
+                    Merge
+                  </Button>
+                </div>
+
+                <div className="space-y-2 border border-card-border bg-background p-4">
+                  <Label htmlFor="note">Private note (staff only)</Label>
+                  {notes.length > 0 && (
+                    <ul className="max-h-28 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+                      {notes.map((n) => (
+                        <li key={n.id}>{n.remarks}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <Textarea
+                    id="note"
+                    rows={2}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="min-h-0 text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    disabled={note.trim().length < 2 || noteMutation.isPending}
+                    onClick={() => noteMutation.mutate()}
+                  >
+                    Save note
+                  </Button>
+                </div>
+              </div>
+
               {/* Action Remarks */}
               <div className="space-y-1.5 pt-1">
-                <Label htmlFor="remarks">Operational Action Remarks * (Required for audit timeline)</Label>
+                <Label htmlFor="remarks">Update for the public timeline * (required)</Label>
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {TEMPLATES.map((text) => (
+                    <button
+                      key={text}
+                      type="button"
+                      onClick={() => setRemarks(text)}
+                      className="max-w-full truncate border border-card-border px-2 py-1 text-left text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
                 <Textarea
                   id="remarks"
                   rows={2}

@@ -25,6 +25,7 @@ export interface Photo {
   file_size_bytes: number;
   scan_status: string;
   sort_order: number;
+  kind?: "evidence" | "resolution";
   created_at: string;
 }
 
@@ -77,6 +78,10 @@ export interface Issue {
   creator?: { id: string; display_name: string; is_anonymous: boolean } | null;
   assignee?: { id: string; display_name?: string } | null;
   photos?: Photo[];
+  department?: string | null;
+  merged_into_id?: string | null;
+  sla_due_at?: string | null;
+  overdue?: boolean;
   created_at: string;
   updated_at: string;
   resolved_at?: string | null;
@@ -133,6 +138,10 @@ export interface IssueViewer {
   flagged: boolean;
   can_withdraw: boolean;
   can_confirm: boolean;
+  following: boolean;
+  my_rating: number | null;
+  can_rate: boolean;
+  rating: { average: number | null; count: number };
 }
 
 export interface FlagItem {
@@ -152,4 +161,55 @@ export interface FlagItem {
     status: string;
     station: string | null;
   };
+}
+
+export interface StationScore {
+  code: string;
+  name: string;
+  reports: number;
+  open: number;
+  fixed: number;
+  fix_rate: number | null;
+  avg_fix_hours: number | null;
+  avg_rating: number | null;
+}
+
+export interface Transparency {
+  days: number;
+  total_reports: number;
+  open: number;
+  fixed: number;
+  fix_rate: number | null;
+  stations: StationScore[];
+}
+
+export interface Reputation {
+  reports: number;
+  backed: number;
+  comments: number;
+  fixed: number;
+  points: number;
+  badges: { code: string; name: string; description: string }[];
+}
+
+export interface Analytics {
+  days: number;
+  total: number;
+  trend: { date: string; created: number; resolved: number }[];
+  by_category: { name: string; count: number }[];
+  by_department: { name: string; count: number }[];
+  by_station: { code: string; name: string; total: number; open: number; overdue: number }[];
+  avg_resolution_hours: number | null;
+  sla_met_percent: number | null;
+  recurring: { station: string; category: string; count: number }[];
+}
+
+export interface AuditItem {
+  at: string | null;
+  kind: string;
+  action: string;
+  actor: string | null;
+  target: string | null;
+  success: boolean;
+  ip: string | null;
 }

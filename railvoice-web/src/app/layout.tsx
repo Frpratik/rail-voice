@@ -3,6 +3,7 @@ import { Barlow, Barlow_Condensed, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { AppHeader, BottomNav, SiteFooter } from "@/components/layout/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import { AppSettings } from "@/providers/app-settings";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import "./globals.css";
@@ -32,6 +33,8 @@ export const metadata: Metadata = {
   },
   description:
     "Community problem reporting and grievance escalation platform for Western Railway (Churchgate to Virar).",
+  manifest: "/manifest.json",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };
 
 export const viewport: Viewport = {
@@ -52,6 +55,7 @@ export default function RootLayout({
       <body className={`${display.variable} ${body.variable} ${mono.variable} font-sans antialiased`}>
         <ThemeProvider>
           <QueryProvider>
+            <AppSettings />
             <AuthGate>
               <div className="flex min-h-screen flex-col">
                 <AppHeader />

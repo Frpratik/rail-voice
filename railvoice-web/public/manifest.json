@@ -1,17 +1,13 @@
 {
   "short_name": "RailVoice",
-  "name": "RailVoice — Indian Railways Grievance & Ops Intelligence",
+  "name": "RailVoice: report problems on Western Railway",
+  "description": "Report and track problems at Western Railway stations, Churchgate to Virar.",
   "icons": [
-    {
-      "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    }
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
   "start_url": "/",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "description": "AI-powered public issue reporting for Indian Railways with offline-first support."
+  "background_color": "#f4f0e6",
+  "theme_color": "#10275c"
 }

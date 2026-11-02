@@ -1,13 +1,13 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.core.deps import get_current_user, get_db, get_reporter_user, require_official, user_is_official
+from app.core.deps import get_current_user, get_db, require_official, user_is_official
 from app.core.enums import TimelineEventType, Visibility
 from app.models.issue import Comment, Issue, IssuePhoto, IssueTimelineEvent
 from app.models.user import Notification, User
@@ -20,6 +20,7 @@ from app.schemas.common import (
     PhotoOut,
 )
 from app.schemas.mappers import comment_to_out, notification_to_out, photo_to_out
+from app.services.engagement import contains_abuse
 from app.services.storage import storage_service
 
 comments_router = APIRouter(tags=["Comments"])
@@ -60,6 +61,12 @@ async def create_comment(
     issue = await db.get(Issue, issue_id)
     if not issue or not issue.is_public:
         raise HTTPException(status_code=404, detail="Issue not found")
+    if contains_abuse(body.body):
+        raise HTTPException(status_code=400, detail="Please remove offensive language")
+    if body.parent_id:
+        parent = await db.get(Comment, body.parent_id)
+        if not parent or parent.issue_id != issue_id:
+            raise HTTPException(status_code=400, detail="Comment to reply to was not found")
 
     comment = Comment(
         issue_id=issue_id,
@@ -124,8 +131,9 @@ async def hide_comment(
 async def upload_photo(
     issue_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[User, Depends(get_reporter_user)],
+    user: Annotated[User, Depends(get_current_user)],
     file: UploadFile = File(...),
+    kind: str = Query("evidence", pattern="^(evidence|resolution)$"),
 ) -> Envelope[PhotoOut]:
     from sqlalchemy import func
 
@@ -133,8 +141,11 @@ async def upload_photo(
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
     is_owner = issue.creator_id == user.id
-    if not is_owner and not user_is_official(user):
+    official = user_is_official(user)
+    if not is_owner and not official:
         raise HTTPException(status_code=403, detail="Only the reporter can upload photos")
+    if kind == "resolution" and not official:
+        raise HTTPException(status_code=403, detail="Only staff can add proof-of-fix photos")
 
     count = await db.scalar(
         select(func.count()).select_from(IssuePhoto).where(IssuePhoto.issue_id == issue_id)
@@ -151,6 +162,7 @@ async def upload_photo(
             detail={"code": "INVALID_IMAGE", "message": str(exc)},
         ) from exc
 
+    data = storage_service.strip_metadata(data, mime)
     key = storage_service.build_key(issue_id=issue_id, filename=file.filename or "photo.jpg")
     await storage_service.save_bytes(key, data, mime)
     photo = IssuePhoto(
@@ -161,6 +173,7 @@ async def upload_photo(
         file_size_bytes=len(data),
         perceptual_hash=None,
         scan_status="approved",
+        kind=kind,
         sort_order=count or 0,
     )
     db.add(photo)

@@ -1,5 +1,7 @@
 import type {
+  Analytics,
   ApiEnvelope,
+  AuditItem,
   Category,
   Comment,
   DashboardData,
@@ -9,8 +11,11 @@ import type {
   NotificationItem,
   Officer,
   Photo,
+  Reputation,
   Station,
+  StationScore,
   TimelineEvent,
+  Transparency,
   User,
 } from "./types";
 
@@ -99,6 +104,9 @@ export async function apiFetch<T>(
   const token = getAccessToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+  } else if (typeof window !== "undefined") {
+    const anonymous = localStorage.getItem("anonymous_session_id");
+    if (anonymous) headers["X-Anonymous-Session"] = anonymous;
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -172,7 +180,37 @@ async function downloadAuthed(path: string, filename: string) {
 }
 
 export const api = {
+  public: {
+    transparency: (days = 90) =>
+      apiFetch<ApiEnvelope<Transparency>>(`/public/transparency?days=${days}`),
+    leaderboard: () =>
+      apiFetch<
+        ApiEnvelope<{
+          passengers: { display_name: string; reports: number; points: number }[];
+          stations: StationScore[];
+        }>
+      >("/public/leaderboard"),
+  },
+
+  me: {
+    following: () => apiFetch<ApiEnvelope<{ items: Issue[] }>>("/me/following"),
+    favourites: () => apiFetch<ApiEnvelope<{ codes: string[] }>>("/me/favourites"),
+    reputation: () => apiFetch<ApiEnvelope<Reputation>>("/me/reputation"),
+    exportData: () => apiFetch<ApiEnvelope<unknown>>("/me/export"),
+    deleteAccount: () =>
+      apiFetch<ApiEnvelope<{ deleted: boolean }>>("/me/delete", { method: "POST" }),
+  },
+
   stations: {
+    nearest: (lat: number, lng: number) =>
+      apiFetch<ApiEnvelope<{ items: (Station & { distance_km: number })[] }>>(
+        `/stations/nearest?lat=${lat}&lng=${lng}`
+      ),
+    stats: (code: string) => apiFetch<ApiEnvelope<StationScore>>(`/stations/${code}/stats`),
+    favourite: (code: string, on: boolean) =>
+      apiFetch<ApiEnvelope<{ favourite: boolean }>>(`/stations/${code}/favourite`, {
+        method: on ? "POST" : "DELETE",
+      }),
     list: (params?: { zone_code?: string; search?: string }) => {
       const q = new URLSearchParams();
       if (params?.zone_code) q.set("zone_code", params.zone_code);
@@ -254,12 +292,16 @@ export const api = {
     list: (params?: {
       station_code?: string;
       status?: string;
-      sort?: "most_supported" | "newest";
+      category_code?: string;
+      open_only?: boolean;
+      sort?: "most_supported" | "newest" | "urgent";
       limit?: number;
     }) => {
       const q = new URLSearchParams();
       if (params?.station_code) q.set("station_code", params.station_code);
       if (params?.status) q.set("status", params.status);
+      if (params?.category_code) q.set("category_code", params.category_code);
+      if (params?.open_only) q.set("open_only", "true");
       if (params?.sort) q.set("sort", params.sort);
       if (params?.limit) q.set("limit", String(params.limit));
       const qs = q.toString();
@@ -357,10 +399,21 @@ export const api = {
       >(`/issues/mine${qs ? `?${qs}` : ""}`);
     },
 
-    uploadPhoto: (issueId: string, file: File) => {
+    follow: (id: string, on: boolean) =>
+      apiFetch<ApiEnvelope<{ following: boolean }>>(`/issues/${id}/follow`, {
+        method: on ? "POST" : "DELETE",
+      }),
+
+    rate: (id: string, payload: { rating: number; comment?: string }) =>
+      apiFetch<ApiEnvelope<{ average: number | null; count: number }>>(`/issues/${id}/rating`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+
+    uploadPhoto: (issueId: string, file: File, kind: "evidence" | "resolution" = "evidence") => {
       const form = new FormData();
       form.append("file", file);
-      return apiFetch<ApiEnvelope<Photo>>(`/issues/${issueId}/photos`, {
+      return apiFetch<ApiEnvelope<Photo>>(`/issues/${issueId}/photos?kind=${kind}`, {
         method: "POST",
         body: form,
       });
@@ -398,9 +451,18 @@ export const api = {
     dashboard: () =>
       apiFetch<ApiEnvelope<DashboardData>>("/admin/dashboard"),
 
-    issues: (params?: { status_filter?: string; limit?: number }) => {
+    issues: (params?: {
+      status_filter?: string;
+      department?: string;
+      assigned_to_me?: boolean;
+      overdue_only?: boolean;
+      limit?: number;
+    }) => {
       const q = new URLSearchParams();
       if (params?.status_filter) q.set("status_filter", params.status_filter);
+      if (params?.department) q.set("department", params.department);
+      if (params?.assigned_to_me) q.set("assigned_to_me", "true");
+      if (params?.overdue_only) q.set("overdue_only", "true");
       if (params?.limit) q.set("limit", String(params.limit));
       const qs = q.toString();
       return apiFetch<ApiEnvelope<{ items: Issue[] }>>(`/admin/issues${qs ? `?${qs}` : ""}`);
@@ -439,6 +501,53 @@ export const api = {
         method: "POST",
         body: JSON.stringify(payload),
       }),
+
+    issueDetail: (id: string) =>
+      apiFetch<ApiEnvelope<{ issue: Issue; timeline: TimelineEvent[]; comments: Comment[] }>>(
+        `/admin/issues/${id}/detail`
+      ),
+
+    addNote: (id: string, body: string) =>
+      apiFetch<ApiEnvelope<{ id: string }>>(`/admin/issues/${id}/notes`, {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      }),
+
+    setDepartment: (id: string, department: string | null) =>
+      apiFetch<ApiEnvelope<{ department: string | null }>>(`/admin/issues/${id}/department`, {
+        method: "PATCH",
+        body: JSON.stringify({ department }),
+      }),
+
+    departments: () => apiFetch<ApiEnvelope<{ items: string[] }>>("/admin/departments"),
+
+    bulkStatus: (payload: { issue_ids: string[]; status: string; remarks: string }) =>
+      apiFetch<ApiEnvelope<{ updated: string[]; skipped: { id: string; reason: string }[] }>>(
+        "/admin/issues/bulk-status",
+        { method: "POST", body: JSON.stringify(payload) }
+      ),
+
+    merge: (id: string, targetId: string) =>
+      apiFetch<ApiEnvelope<{ merged_into: string; backers_added: number }>>(
+        `/admin/issues/${id}/merge`,
+        { method: "POST", body: JSON.stringify({ target_id: targetId }) }
+      ),
+
+    analytics: (days: number) => apiFetch<ApiEnvelope<Analytics>>(`/admin/analytics?days=${days}`),
+
+    handover: (hours: number) =>
+      apiFetch<
+        ApiEnvelope<{
+          hours: number;
+          new_reports: Issue[];
+          overdue: Issue[];
+          activity: { type: string; remarks: string | null; at: string | null }[];
+        }>
+      >(`/admin/handover?hours=${hours}`),
+
+    audit: () => apiFetch<ApiEnvelope<{ items: AuditItem[] }>>("/admin/audit"),
+
+    weeklyReport: () => downloadAuthed("/admin/reports/issues.pdf?days=7", "railvoice-weekly.pdf"),
 
     flags: (params?: { include_resolved?: boolean }) =>
       apiFetch<ApiEnvelope<{ items: FlagItem[] }>>(

@@ -16,6 +16,7 @@ import {
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 import { useAuthStore } from "@/lib/auth-store";
+import { LANGUAGES, useLangStore, useT, type Lang } from "@/lib/i18n";
 import { isOfficial } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
@@ -46,18 +47,21 @@ export function AppHeader() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
+  const t = useT();
+  const lang = useLangStore((s) => s.lang);
+  const setLang = useLangStore((s) => s.setLang);
 
-  if (pathname.startsWith("/admin")) return null;
+  if (pathname.startsWith("/admin") || pathname.startsWith("/embed")) return null;
 
   const isLogin = pathname.startsWith("/login");
   const official = isOfficial(user?.roles);
 
   const navItems = [
-    { href: "/", label: "Feed" },
-    { href: "/stations", label: "Stations" },
-    { href: "/my-issues", label: "My Issues" },
-    { href: "/report", label: "Report" },
-    ...(official ? [{ href: "/admin/dashboard", label: "Control Room" }] : []),
+    { href: "/", label: t("nav.feed") },
+    { href: "/stations", label: t("nav.stations") },
+    { href: "/my-issues", label: t("nav.myIssues") },
+    { href: "/report", label: t("nav.report") },
+    ...(official ? [{ href: "/admin/dashboard", label: t("nav.control") }] : []),
   ];
 
   const iconBtn =
@@ -97,11 +101,25 @@ export function AppHeader() {
           </nav>
         )}
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          {mounted && (
+            <select
+              aria-label="Language"
+              value={lang}
+              onChange={(e) => setLang(e.target.value as Lang)}
+              className="h-9 w-[4.2rem] rounded-sm border border-white/30 bg-transparent px-1 text-xs text-white sm:w-auto"
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code} className="text-[#101a33]">
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          )}
           {mounted && (
             <button
               type="button"
-              className={iconBtn}
+              className={cn(iconBtn, "hidden min-[400px]:flex")}
               onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
               aria-label="Toggle theme"
             >
@@ -129,7 +147,7 @@ export function AppHeader() {
                 href="/report"
                 className="label-caps ml-2 hidden h-10 items-center rounded-sm border-2 border-[#101a33] bg-[#f5b800] px-4 text-sm text-[#101a33] transition-colors hover:bg-[#ffd24d] lg:inline-flex"
               >
-                Report issue
+                {t("nav.reportIssue")}
               </Link>
             </>
           )}
@@ -143,19 +161,26 @@ export function AppHeader() {
 export function BottomNav() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  const t = useT();
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/login")) return null;
+  if (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/embed")
+  ) {
+    return null;
+  }
 
   const official = isOfficial(user?.roles);
 
   const items = [
-    { href: "/", icon: Home, label: "Home" },
-    { href: "/stations", icon: MapPin, label: "Stations" },
-    { href: "/report", icon: Plus, label: "Report", accent: true },
-    { href: "/my-issues", icon: ClipboardList, label: "My issues" },
+    { href: "/", icon: Home, label: t("nav.home") },
+    { href: "/stations", icon: MapPin, label: t("nav.stations") },
+    { href: "/report", icon: Plus, label: t("nav.report"), accent: true },
+    { href: "/my-issues", icon: ClipboardList, label: t("nav.myIssues") },
     ...(official
-      ? [{ href: "/admin/dashboard", icon: Shield, label: "Control" }]
-      : [{ href: "/profile", icon: User, label: "Profile" }]),
+      ? [{ href: "/admin/dashboard", icon: Shield, label: t("nav.control") }]
+      : [{ href: "/profile", icon: User, label: t("nav.profile") }]),
   ];
 
   return (
@@ -193,7 +218,14 @@ export function BottomNav() {
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (pathname.startsWith("/admin") || pathname.startsWith("/login")) return null;
+  const t = useT();
+  if (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/embed")
+  ) {
+    return null;
+  }
 
   return (
     <footer className="mt-auto bg-[#0d2252] text-white">
@@ -213,19 +245,19 @@ export function SiteFooter() {
         </div>
         <div className="label-caps flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/70">
           <Link href="/" className="transition-colors hover:text-[#f5b800]">
-            Feed
+            {t("nav.feed")}
           </Link>
           <Link href="/stations" className="transition-colors hover:text-[#f5b800]">
-            Stations
+            {t("nav.stations")}
           </Link>
-          <Link href="/my-issues" className="transition-colors hover:text-[#f5b800]">
-            My Issues
+          <Link href="/transparency" className="transition-colors hover:text-[#f5b800]">
+            {t("nav.transparency")}
           </Link>
-          <Link href="/report" className="transition-colors hover:text-[#f5b800]">
-            Report
+          <Link href="/leaderboard" className="transition-colors hover:text-[#f5b800]">
+            {t("nav.leaderboard")}
           </Link>
           <Link href="/help" className="transition-colors hover:text-[#f5b800]">
-            Help
+            {t("nav.help")}
           </Link>
           <Link href="/privacy" className="transition-colors hover:text-[#f5b800]">
             Privacy

@@ -16,8 +16,12 @@ from app.models.issue import (
     Issue,
     IssuePhoto,
     Comment,
+    IssueFlag,
+    IssueFollower,
+    IssueRating,
     IssueSupport,
     IssueTimelineEvent,
+    StationFavourite,
     SystemConfig,
 )
 from app.models.user import (
@@ -113,6 +117,10 @@ def seed(session: Session, reset: bool = False) -> None:
     print("[seed] Clearing all existing data from tables...")
     # Clean tables in reverse dependency order
     session.execute(delete(Notification))
+    session.execute(delete(IssueFlag))
+    session.execute(delete(IssueFollower))
+    session.execute(delete(IssueRating))
+    session.execute(delete(StationFavourite))
     session.execute(delete(Comment))
     session.execute(delete(IssuePhoto))
     session.execute(delete(IssueSupport))

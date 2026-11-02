@@ -6,10 +6,10 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
 import type { User } from "@/lib/types";
 
-const PUBLIC_PATHS = ["/login", "/help", "/privacy", "/terms"];
+const PRIVATE_PATHS = ["/my-issues", "/notifications", "/admin"];
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  return !PRIVATE_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -30,9 +30,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    if (isPublicPath(pathname)) return;
     if (!user) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      if (!isPublicPath(pathname)) {
+        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      }
       return;
     }
     if (checkedSession.current) return;
@@ -59,7 +60,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {
         logout();
-        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        if (!isPublicPath(pathname)) {
+          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        }
       });
   }, [hydrated, logout, pathname, router, setAuth, user]);
 
